@@ -1,0 +1,28 @@
+name: Fraude Bikes - Anàlisi automàtica
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Fraude Bikes analysis
+        env:
+          MODE_TOKEN: ${{ secrets.MODE_TOKEN }}
+          MODE_SECRET: ${{ secrets.MODE_SECRET }}
+        run: python scripts/fraude_bikes_analysis.py
