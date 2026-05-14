@@ -30,7 +30,7 @@ prompt: |
      - Indica su % de adopción.
      - Lista las demás versiones presentes esa fecha con su % de adopción, ordenadas de versión más alta a más baja.
   3. Un párrafo equivalente para Android.
-  4. Un párrafo indicando el promedio de rentals realizados tanto en iOS como en Android, por separado y total de ambos, en los últimos 3 días.
+  4. Un párrafo indicando el promedio de rentals realizados tanto en iOS como en Android, por separado y total de ambos, en los últimos 3 días, en versiones que no sean la última.
 
   Reglas estrictas:
   - Porcentajes con un decimal (ej. 67.3%).
