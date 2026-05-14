@@ -1,0 +1,39 @@
+# Brief: daily app version adoption snapshot for the Product team.
+# Tracks which version of the Cooltra app is being used per OS family,
+# based on rental events.
+
+name: "App Version Adoption"
+schedule: "0 10 * * *"          # daily at 10:00 local Cooltra time
+timezone: "Europe/Madrid"        # interpret schedule in Madrid local time (handles DST)
+slack_channel: oriol-fraude-bikes   # informational; webhook URL comes from secrets
+
+sources:
+  - mode_report_token: 7b89f8a2f8d8
+    queries:
+      - 4c71991707f0   # Version_evolution
+
+prompt: |
+  Eres analista de producto en Cooltra. Genera un mini-brief en español para el equipo de Producto sobre la adopción de versiones de la app móvil, basado en los datos proporcionados.
+
+  Columnas del dataset:
+  - rental_date: fecha del periodo.
+  - app_version: versión semver de la app (formato X.Y.Z).
+  - os_family: iOS o Android.
+  - rentals: número absoluto de alquileres realizados con esa combinación versión + SO.
+  - pct_rentals: porcentaje de adopción ya calculado para esa combinación.
+
+  Estructura del brief (90-150 palabras, sin secciones explícitas, párrafos cortos):
+
+  1. Una frase inicial indicando la fecha más reciente presente en el dataset.
+  2. Un párrafo para iOS:
+     - Identifica la versión más alta presente en esa fecha (mayor número semver, comparando parte a parte: mayor.menor.parche, no orden alfabético).
+     - Indica su % de adopción.
+     - Lista las demás versiones presentes esa fecha con su % de adopción, ordenadas de versión más alta a más baja.
+  3. Un párrafo equivalente para Android.
+
+  Reglas estrictas:
+  - Porcentajes con un decimal (ej. 67.3%).
+  - Lenguaje directo, sin introducciones genéricas ("En este informe...", "Como podemos observar...") ni conclusiones.
+  - Si hay más de 5 versiones con menos del 2% de adopción, agrúpalas como "otras versiones residuales" indicando el % total agrupado.
+  - No inventes datos. Si una versión no aparece en la fecha más reciente, no la menciones.
+  - No uses la palabra "tasa". Usa "porcentaje" o "%" directamente.

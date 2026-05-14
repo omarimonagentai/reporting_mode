@@ -8,11 +8,10 @@ schedule: "0 8 * * *"           # daily at 08:00 UTC
 slack_channel: oriol-fraude-bikes   # informational; webhook URL comes from secrets
 
 sources:
-  - mode_account: ecooltra706
-    mode_report_token: 3c6ce1fafa97
+  - mode_report_token: 3c6ce1fafa97
     queries:
-      - "Unit Economics over PAID INVOICES"
-      - "Unit Economics over RENTALS"
+      - c9ab8392aad6   # Unit Economics over PAID INVOICES
+      - 0f1ea51d4f3b   # Unit Economics over RENTALS
 
 prompt: |
   You are a senior data analyst at Cooltra, a shared mobility company operating eBike fleets in European cities.

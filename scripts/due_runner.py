@@ -9,10 +9,9 @@ Each brief runs as a subprocess so failures are isolated: one brief crashing
 does not stop the others. If any brief fails, this script exits non-zero so
 the GitHub Actions workflow shows a red status (visibility).
 
-TIME ZONE NOTE: cron expressions are evaluated in UTC, matching GitHub
-Actions' own cron scheduling. A brief's `schedule: "0 8 * * *"` means
-08:00 UTC, which is 09:00 CET (winter) or 10:00 CEST (summer). Convert
-local time → UTC when writing schedules.
+TIME ZONE: each brief can declare a `timezone:` field (IANA name, e.g.
+"Europe/Madrid"). The cron expression is then interpreted in that timezone,
+with automatic DST handling. If omitted, cron is interpreted as UTC.
 
 Usage:
     python scripts/due_runner.py
@@ -21,6 +20,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 from croniter import croniter
@@ -40,20 +40,32 @@ def find_briefs():
     return sorted(BRIEFS_DIR.glob("*.yml"))
 
 
-def is_due(schedule_cron, now, window_seconds):
-    """Return True if `schedule_cron` would have fired within the last
-    `window_seconds` before `now`.
-    """
+def resolve_tz(tz_name):
+    """Return a tzinfo. Defaults to UTC; rejects invalid names with a clear error."""
+    if not tz_name or tz_name == "UTC":
+        return timezone.utc
     try:
-        cron = croniter(schedule_cron, now)
+        return ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        print(f"   ERROR: timezone desconegut '{tz_name}', usant UTC")
+        return timezone.utc
+
+
+def is_due(schedule_cron, now_utc, window_seconds, tz_name=None):
+    """Return True if `schedule_cron` (interpreted in `tz_name`) would have
+    fired within the last `window_seconds` before `now_utc`.
+    """
+    tz = resolve_tz(tz_name)
+    now_in_tz = now_utc.astimezone(tz)
+    try:
+        cron = croniter(schedule_cron, now_in_tz)
     except (ValueError, KeyError) as exc:
         print(f"   ERROR: cron invàlid '{schedule_cron}': {exc}")
         return False
     prev_fire = cron.get_prev(datetime)
-    # croniter may return naive datetimes; align with `now` for arithmetic.
     if prev_fire.tzinfo is None:
-        prev_fire = prev_fire.replace(tzinfo=now.tzinfo or timezone.utc)
-    delta = (now - prev_fire).total_seconds()
+        prev_fire = prev_fire.replace(tzinfo=tz)
+    delta = (now_utc - prev_fire.astimezone(timezone.utc)).total_seconds()
     return delta < window_seconds
 
 
@@ -94,14 +106,16 @@ def main():
             print(f"   - {path.name}: ERROR llegint YAML: {exc}")
             continue
         schedule = cfg.get("schedule")
+        tz_name = cfg.get("timezone")
         if not schedule:
             print(f"   - {path.name}: sense camp 'schedule' → omès")
             continue
-        if is_due(schedule, now, WINDOW_SECONDS):
-            print(f"   - {path.name}: DUE  ({schedule})")
+        label = f"{schedule}" + (f" [{tz_name}]" if tz_name else " [UTC]")
+        if is_due(schedule, now, WINDOW_SECONDS, tz_name):
+            print(f"   - {path.name}: DUE  ({label})")
             due.append(path)
         else:
-            print(f"   - {path.name}: not due  ({schedule})")
+            print(f"   - {path.name}: not due  ({label})")
 
     print(f"\n{len(due)} brief(s) per executar.")
 

@@ -34,6 +34,7 @@ load_dotenv()
 
 # ---- Mode ----
 MODE_BASE_URL = "https://app.mode.com/api"
+DEFAULT_MODE_ACCOUNT = os.environ.get("DEFAULT_MODE_ACCOUNT")
 HTTP_TIMEOUT = 30
 POLL_INTERVAL_SECONDS = 5
 POLL_TIMEOUT_SECONDS = 300
@@ -137,17 +138,60 @@ def get_report_metadata(auth, account, report_token):
     return {"name": data.get("name") or report_token}
 
 
+def get_queries(auth, account, report_token):
+    """Fetch the list of queries declared on a Mode report.
+
+    Returns a list of dicts with at least `token` and `name`. Used to map
+    the stable query tokens from a brief to their (possibly renamed) names,
+    so we can identify the right query_runs after a report run.
+    """
+    url = f"{MODE_BASE_URL}/{account}/reports/{report_token}/queries"
+    response = requests.get(
+        url, auth=auth,
+        headers={"Accept": "application/hal+json"}, timeout=HTTP_TIMEOUT,
+    )
+    response.raise_for_status()
+    return response.json()["_embedded"]["queries"]
+
+
+def resolve_query_tokens(auth, account, report_token, requested_tokens):
+    """Map requested query tokens to their current names in Mode.
+
+    Returns a dict {token: name}. Exits if any requested token is missing
+    from the report.
+    """
+    queries = get_queries(auth, account, report_token)
+    by_token = {q["token"]: q["name"] for q in queries}
+    missing = [tok for tok in requested_tokens if tok not in by_token]
+    if missing:
+        available = sorted(f"{q['token']} ({q['name']})" for q in queries)
+        sys.exit(
+            f"ERROR: query tokens no trobats al report {report_token}: {missing}\n"
+            f"  Queries disponibles:\n    - " + "\n    - ".join(available)
+        )
+    return {tok: by_token[tok] for tok in requested_tokens}
+
+
 def fetch_source(auth, source):
     """Trigger + poll + fetch for one source.
 
     Returns (report_title, dict {query_name: rows}).
     """
-    account = source["mode_account"]
+    account = source.get("mode_account") or DEFAULT_MODE_ACCOUNT
+    if not account:
+        sys.exit("ERROR: source.mode_account no definit i DEFAULT_MODE_ACCOUNT "
+                 "env var també buit. Comprova els secrets del workflow.")
     report_token = source["mode_report_token"]
-    desired = set(source["queries"])
+    requested_tokens = list(source["queries"])
 
     meta = get_report_metadata(auth, account, report_token)
     title = meta["name"]
+
+    print(f"-> [{title}] Resolent {len(requested_tokens)} query token(s)...")
+    token_to_name = resolve_query_tokens(auth, account, report_token, requested_tokens)
+    for tok, name in token_to_name.items():
+        print(f"     {tok} → \"{name}\"")
+    desired = set(token_to_name.values())
 
     print(f"-> [{title}] Disparant run del report '{report_token}'...")
     run_token = trigger_report(auth, account, report_token)
@@ -161,7 +205,7 @@ def fetch_source(auth, source):
     selected = [qr for qr in query_runs if qr.get("query_name") in desired]
     missing = desired - {qr.get("query_name") for qr in selected}
     if missing:
-        sys.exit(f"ERROR: queries no trobades a '{title}': {sorted(missing)}")
+        sys.exit(f"ERROR: query_runs no trobats a '{title}': {sorted(missing)}")
 
     results = {}
     for qr in selected:
