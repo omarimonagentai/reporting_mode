@@ -44,9 +44,12 @@ SLACK_TIMEOUT = 10
 
 SYSTEM_PROMPT = """You are a senior data analyst at Cooltra, a shared mobility company operating eBike fleets in European cities.
 
-Write an executive brief in English for the operations leadership team, based on the Unit Economics data provided. The data contains two queries:
-- "Unit Economics over PAID INVOICES" — NET revenue (after credit notes) per city per month.
-- "Unit Economics over RENTALS" — GROSS revenue (rentals generated, before invoicing) per city per month.
+Write an executive brief in English for the operations leadership team, based on the Unit Economics data provided. The data contains two queries that measure DIFFERENT things — they are not the same metric in different states:
+
+- "Unit Economics over PAID INVOICES" — Invoices paid: revenue from invoices in PAID state (after credit notes). Reflects money actually billed and collected for the period.
+- "Unit Economics over RENTALS" — Revenue from rentals: revenue from rentals generated in the period, independent of invoicing status. Reflects rental value created.
+
+These are two parallel views on the business, with a lag between them: a rental generated in April typically gets invoiced and paid in May or later. Do not describe their relationship as "net vs gross" — it is invoicing-collection vs rental-generation, with timing differences.
 
 Output exactly three markdown sections, in this order:
 
@@ -54,7 +57,7 @@ Output exactly three markdown sections, in this order:
 ~80 words. The single most important shift or trend visible in the data.
 
 ## Insights
-~120 words. Concrete observations with specific numbers: month-over-month growth rates, inter-city comparisons, gross vs net deltas, revenue-per-vehicle differentials. Always cite numbers directly from the data.
+~120 words. Concrete observations with specific numbers: month-over-month growth rates, inter-city comparisons, the lag between rental revenue and paid-invoice revenue per city, revenue-per-vehicle differentials. Always cite numbers directly from the data.
 
 ## Recommendations
 ~100 words. Three to four actions. Each recommendation MUST: name a specific city, cite a specific number or trend from the data above, and propose a measurable target or next step.
@@ -206,7 +209,57 @@ def markdown_to_slack(text):
     return text
 
 
-def send_to_slack(report_text):
+CHART_BAR_WIDTH = 28
+
+
+def render_revenue_chart(results):
+    """Genera un bar chart ASCII de REVENUE_PER_VEHICLE per ciutat, mes més recent.
+
+    Retorna una string multilínia (sense fence) o '' si falten dades.
+    Comparable amb monoespai dins d'un code block de Slack.
+    """
+    rentals = results.get("Unit Economics over RENTALS", []) or []
+    paid = results.get("Unit Economics over PAID INVOICES", []) or []
+    if not rentals or not paid:
+        return ""
+
+    # Mes més recent comú a totes dues queries
+    common_months = {r["MONTH"] for r in rentals} & {p["MONTH"] for p in paid}
+    if not common_months:
+        return ""
+    latest_month = max(common_months)
+
+    paid_latest = sorted(
+        (r["CITY"], float(r["REVENUE_PER_VEHICLE"]))
+        for r in paid if r["MONTH"] == latest_month
+    )
+    rentals_latest = sorted(
+        (r["CITY"], float(r["REVENUE_PER_VEHICLE"]))
+        for r in rentals if r["MONTH"] == latest_month
+    )
+
+    all_values = [v for _, v in paid_latest + rentals_latest]
+    if not all_values:
+        return ""
+    max_val = max(all_values)
+    label_width = max(len(c) for c, _ in paid_latest + rentals_latest)
+
+    def format_group(title, rows):
+        lines = [title]
+        for city, value in rows:
+            bar_len = int(round((value / max_val) * CHART_BAR_WIDTH))
+            bar = "█" * bar_len
+            lines.append(f"  {city:<{label_width}}  {bar:<{CHART_BAR_WIDTH}}  {value:>7.2f}")
+        return lines
+
+    out = [f"Revenue per vehicle — {latest_month} (€)", ""]
+    out.extend(format_group("Invoices paid:", paid_latest))
+    out.append("")
+    out.extend(format_group("Revenue from rentals:", rentals_latest))
+    return "\n".join(out)
+
+
+def send_to_slack(report_text, chart_text=""):
     webhook = os.environ.get("SLACK_WEBHOOK_URL")
     if not webhook:
         sys.exit("ERROR: SLACK_WEBHOOK_URL no està definit.")
@@ -214,6 +267,8 @@ def send_to_slack(report_text):
     formatted = markdown_to_slack(report_text)
     today_str = date.today().strftime("%d/%m/%Y")
     body = f"📊 *Fraude Bikes — Informe {today_str}*\n\n{formatted}"
+    if chart_text:
+        body += f"\n\n```\n{chart_text}\n```"
 
     response = requests.post(
         webhook,
@@ -284,8 +339,15 @@ def main():
     print("=" * 70)
     print("")
 
+    chart = render_revenue_chart(results)
+    if chart:
+        print("")
+        print("CHART:")
+        print(chart)
+        print("")
+
     print(f"-> Enviant a Slack...")
-    status = send_to_slack(report)
+    status = send_to_slack(report, chart)
     print(f"   ✓ enviat (status {status})")
 
 
