@@ -34,6 +34,7 @@ load_dotenv()
 
 # ---- Mode ----
 MODE_BASE_URL = "https://app.mode.com/api"
+DEFAULT_MODE_ACCOUNT = "ecooltra706"   # used when a source omits `mode_account`
 HTTP_TIMEOUT = 30
 POLL_INTERVAL_SECONDS = 5
 POLL_TIMEOUT_SECONDS = 300
@@ -142,7 +143,7 @@ def fetch_source(auth, source):
 
     Returns (report_title, dict {query_name: rows}).
     """
-    account = source["mode_account"]
+    account = source.get("mode_account") or DEFAULT_MODE_ACCOUNT
     report_token = source["mode_report_token"]
     desired = set(source["queries"])
 

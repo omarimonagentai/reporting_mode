@@ -8,8 +8,7 @@ schedule: "0 8 * * *"           # daily at 08:00 UTC
 slack_channel: oriol-fraude-bikes   # informational; webhook URL comes from secrets
 
 sources:
-  - mode_account: ecooltra706
-    mode_report_token: 3c6ce1fafa97
+  - mode_report_token: 3c6ce1fafa97
     queries:
       - "Unit Economics over PAID INVOICES"
       - "Unit Economics over RENTALS"
