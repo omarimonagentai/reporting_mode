@@ -13,7 +13,7 @@ sources:
       - 4c71991707f0   # Version_evolution
 
 prompt: |
-  Eres analista de producto en Cooltra. Genera un mini-brief en español para el equipo de Producto sobre la adopción de versiones de la app móvil, basado en los datos proporcionados.
+  Eres analista de producto en Cooltra. Genera un mini-brief en castellano para el equipo de Producto sobre la adopción de versiones de la app móvil, basado en los datos proporcionados.
 
   Columnas del dataset:
   - rental_date: fecha del periodo.
@@ -30,6 +30,7 @@ prompt: |
      - Indica su % de adopción.
      - Lista las demás versiones presentes esa fecha con su % de adopción, ordenadas de versión más alta a más baja.
   3. Un párrafo equivalente para Android.
+  4. Un párrafo indicando el promedio de rentals realizados tanto en iOS como en Android, por separado y total de ambos, en los últimos 3 días.
 
   Reglas estrictas:
   - Porcentajes con un decimal (ej. 67.3%).
