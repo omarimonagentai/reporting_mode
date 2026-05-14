@@ -10,7 +10,7 @@ slack_channel: oriol-fraude-bikes   # informational; webhook URL comes from secr
 sources:
   - mode_report_token: 7b89f8a2f8d8
     queries:
-      - "Version_evolution"
+      - 4c71991707f0   # Version_evolution
 
 prompt: |
   Eres analista de producto en Cooltra. Genera un mini-brief en español para el equipo de Producto sobre la adopción de versiones de la app móvil, basado en los datos proporcionados.
