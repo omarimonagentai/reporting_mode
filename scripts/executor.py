@@ -138,6 +138,19 @@ def get_report_metadata(auth, account, report_token):
     return {"name": data.get("name") or report_token}
 
 
+def resolve_account(source):
+    """Return the Mode account for a source.
+
+    Falls back to the DEFAULT_MODE_ACCOUNT env var when the YAML omits
+    `mode_account`. Fails fast if neither is set.
+    """
+    account = source.get("mode_account") or DEFAULT_MODE_ACCOUNT
+    if not account:
+        sys.exit("ERROR: source.mode_account no definit i DEFAULT_MODE_ACCOUNT "
+                 "env var també buit. Comprova els secrets del workflow.")
+    return account
+
+
 def get_queries(auth, account, report_token):
     """Fetch the list of queries declared on a Mode report.
 
@@ -177,10 +190,7 @@ def fetch_source(auth, source):
 
     Returns (report_title, dict {query_name: rows}).
     """
-    account = source.get("mode_account") or DEFAULT_MODE_ACCOUNT
-    if not account:
-        sys.exit("ERROR: source.mode_account no definit i DEFAULT_MODE_ACCOUNT "
-                 "env var també buit. Comprova els secrets del workflow.")
+    account = resolve_account(source)
     report_token = source["mode_report_token"]
     requested_tokens = list(source["queries"])
 
@@ -283,7 +293,7 @@ def save_artifacts(brief, sources_data, brief_text):
         "generated_at": date.today().isoformat(),
         "sources": [
             {
-                "mode_account": source["mode_account"],
+                "mode_account": resolve_account(source),
                 "mode_report_token": source["mode_report_token"],
                 "report_title": title,
                 "queries": results,
