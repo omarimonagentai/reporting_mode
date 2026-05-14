@@ -231,13 +231,24 @@ def fetch_source(auth, source):
 
 
 def build_user_message(sources_data):
-    """sources_data is list of (source_dict, report_title, {query_name: rows})."""
+    """sources_data is list of (source_dict, report_title, {query_name: rows}).
+
+    Data is serialised as compact JSON (no whitespace) to minimise the token
+    count sent to the LLM. Modern LLMs parse compact JSON without trouble; the
+    indent was purely cosmetic and was costing ~25-35% extra tokens per call.
+    The saved JSON file (out/<slug>.raw.json) keeps indent for human readability.
+    """
     parts = [f"Today's date: {date.today().isoformat()}", ""]
     for source, title, results in sources_data:
         for query_name, rows in results.items():
             parts.append(f'## Query: "{query_name}" (from report "{title}")')
             parts.append("```json")
-            parts.append(json.dumps(rows, indent=2, ensure_ascii=False, default=str))
+            parts.append(json.dumps(
+                rows,
+                ensure_ascii=False,
+                default=str,
+                separators=(",", ":"),
+            ))
             parts.append("```")
             parts.append("")
     return "\n".join(parts)
