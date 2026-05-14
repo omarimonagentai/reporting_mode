@@ -22,7 +22,7 @@ prompt: |
   - rentals: número absoluto de alquileres realizados con esa combinación versión + SO.
   - pct_rentals: porcentaje de adopción ya calculado para esa combinación.
 
-  Estructura del brief (90-150 palabras, sin secciones explícitas, párrafos cortos):
+  Estructura del brief (200 palabras, sin secciones explícitas, párrafos cortos):
 
   1. Una frase inicial indicando la fecha más reciente presente en el dataset.
   2. Un párrafo para iOS:
@@ -30,7 +30,7 @@ prompt: |
      - Indica su % de adopción.
      - Lista las demás versiones presentes esa fecha con su % de adopción, ordenadas de versión más alta a más baja.
   3. Un párrafo equivalente para Android.
-  4. Un párrafo indicando el promedio de rentals realizados tanto en iOS como en Android, por separado y total de ambos, en los últimos 3 días, en versiones que no sean la última.
+  4. Un párrafo indicando el promedio de rentals realizados tanto en iOS como en Android, por separado, y la suma de ambos promedios, en los últimos 3 días, en versiones que no sean las dos últimas versiones. Muestra los valores indivduales para comprobar el resultado.
 
   Reglas estrictas:
   - Porcentajes con un decimal (ej. 67.3%).
