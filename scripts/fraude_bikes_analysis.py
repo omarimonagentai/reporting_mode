@@ -1,17 +1,19 @@
 """Fraude Bikes — anàlisi automàtica del report de Mode.
 
-Pipeline complet: trigger Mode + polling + fetch de les queries incloses,
-resum executiu via GROQ i publicació a un canal de Slack.
-Guarda els resultats crus a out/last_run.json per facilitar el debug.
+Step 8: pipeline complet — Mode + LLM (Groq) + enviament a Slack.
+Guarda els resultats crus a out/last_run.json i l'informe a out/last_report.md.
 """
 import json
 import os
+import re
 import sys
 import time
+from datetime import date
 from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
+from groq import Groq
 
 load_dotenv()
 
@@ -19,10 +21,6 @@ MODE_ACCOUNT = "ecooltra706"
 REPORT_TOKEN = "3c6ce1fafa97"
 MODE_BASE_URL = f"https://app.mode.com/api/{MODE_ACCOUNT}"
 HTTP_TIMEOUT = 30
-
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
-GROQ_TIMEOUT = 60
 
 POLL_INTERVAL_SECONDS = 5
 POLL_TIMEOUT_SECONDS = 300
@@ -35,6 +33,38 @@ INCLUDED_QUERY_NAMES = {
     "Unit Economics over PAID INVOICES",
     "Unit Economics over RENTALS",
 }
+
+LLM_MODEL = "llama-3.3-70b-versatile"
+# LLM_MODEL = "mixtral-8x7b-32768"  # alternativa amb context més gran
+LLM_TEMPERATURE = 0.3
+LLM_MAX_TOKENS = 800
+LLM_TIMEOUT = 60
+
+SLACK_TIMEOUT = 10
+
+SYSTEM_PROMPT = """You are a senior data analyst at Cooltra, a shared mobility company operating eBike fleets in European cities.
+
+Write an executive brief in English for the operations leadership team, based on the Unit Economics data provided. The data contains two queries:
+- "Unit Economics over PAID INVOICES" — NET revenue (after credit notes) per city per month.
+- "Unit Economics over RENTALS" — GROSS revenue (rentals generated, before invoicing) per city per month.
+
+Output exactly three markdown sections, in this order:
+
+## Summary
+~80 words. The single most important shift or trend visible in the data.
+
+## Insights
+~120 words. Concrete observations with specific numbers: month-over-month growth rates, inter-city comparisons, gross vs net deltas, revenue-per-vehicle differentials. Always cite numbers directly from the data.
+
+## Recommendations
+~100 words. Three to four actions. Each recommendation MUST: name a specific city, cite a specific number or trend from the data above, and propose a measurable target or next step.
+
+Strict rules:
+- Total length: minimum 250 words, maximum 350. Be substantive, not padded.
+- Use the `##` markdown header syntax exactly as shown.
+- Never use vague verbs like "consider", "explore", "look into", "evaluate". Use specific verbs: "increase X to Y by Q", "audit Z before date W", "test pricing tier V in city U".
+- The audience already knows the business — deliver analytical insight, not background.
+"""
 
 OUT_DIR = Path(__file__).resolve().parent.parent / "out"
 
@@ -135,53 +165,63 @@ def save_raw_results(results, run_token):
     return path
 
 
-def build_groq_prompt(results):
-    """Construeix el prompt per GROQ amb les dades crues de les queries."""
-    parts = [
-        "Tens a continuació les dades de les queries del report 'Fraude Bikes' (Mode Analytics).",
-        "",
-    ]
-    for name, rows in results.items():
-        parts.append(f"## {name}")
-        parts.append(f"Files: {len(rows)}")
-        parts.append("Dades (JSON):")
-        parts.append("```json")
-        parts.append(json.dumps(rows, ensure_ascii=False, default=str))
-        parts.append("```")
-        parts.append("")
-    parts.append(
-        "Genera un resum executiu curt en català (3-5 bullets) amb els KPIs i "
-        "xifres més rellevants. Format: bullets en markdown amb números concrets. "
-        "No afegeixis cap introducció ni conclusió."
+def generate_report(results):
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        sys.exit("ERROR: GROQ_API_KEY no està definit. Comprova .env (local) o secrets (CI).")
+
+    client = Groq(api_key=api_key, timeout=LLM_TIMEOUT)
+    user_message = (
+        f"Today's date: {date.today().isoformat()}\n\n"
+        "Unit Economics data extracted from Mode (Fraude Bikes report):\n\n"
+        + json.dumps(results, indent=2, ensure_ascii=False, default=str)
     )
-    return "\n".join(parts)
+    response = client.chat.completions.create(
+        model=LLM_MODEL,
+        temperature=LLM_TEMPERATURE,
+        max_tokens=LLM_MAX_TOKENS,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
+    )
+    return response.choices[0].message.content
 
 
-def call_groq(api_key, prompt):
+def save_report(report_text):
+    OUT_DIR.mkdir(exist_ok=True)
+    path = OUT_DIR / "last_report.md"
+    path.write_text(report_text, encoding="utf-8")
+    return path
+
+
+def markdown_to_slack(text):
+    """Converteix markdown estàndard al format mrkdwn de Slack.
+
+    - ## Header  → *Header*    (Slack no té headers; converteix a bold)
+    - **bold**   → *bold*      (Slack fa servir un sol asterisc)
+    """
+    text = re.sub(r"^#{1,6}\s+(.+)$", r"*\1*", text, flags=re.MULTILINE)
+    text = re.sub(r"\*\*(.+?)\*\*", r"*\1*", text)
+    return text
+
+
+def send_to_slack(report_text):
+    webhook = os.environ.get("SLACK_WEBHOOK_URL")
+    if not webhook:
+        sys.exit("ERROR: SLACK_WEBHOOK_URL no està definit.")
+
+    formatted = markdown_to_slack(report_text)
+    today_str = date.today().strftime("%d/%m/%Y")
+    body = f"📊 *Fraude Bikes — Informe {today_str}*\n\n{formatted}"
+
     response = requests.post(
-        GROQ_URL,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": GROQ_MODEL,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.2,
-        },
-        timeout=GROQ_TIMEOUT,
+        webhook,
+        json={"text": body},
+        timeout=SLACK_TIMEOUT,
     )
     response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"].strip()
-
-
-def post_to_slack(webhook_url, text):
-    response = requests.post(
-        webhook_url,
-        json={"text": text},
-        timeout=HTTP_TIMEOUT,
-    )
-    response.raise_for_status()
+    return response.status_code
 
 
 def print_summary(results):
@@ -231,19 +271,22 @@ def main():
     print(f"-> Resum:")
     print_summary(results)
 
-    groq_key = os.environ.get("GROQ_API_KEY")
-    slack_url = os.environ.get("SLACK_WEBHOOK_URL")
-    if not groq_key or not slack_url:
-        print("-> GROQ_API_KEY o SLACK_WEBHOOK_URL no definits; saltant pas de notificació.")
-        return
+    print(f"-> Generant informe amb {LLM_MODEL}...")
+    report = generate_report(results)
+    report_path = save_report(report)
+    print(f"   guardat a {report_path}")
 
-    print(f"-> Generant resum executiu amb GROQ ({GROQ_MODEL})...")
-    summary = call_groq(groq_key, build_groq_prompt(results))
-    print(f"   resum ({len(summary)} chars) generat.")
+    print("")
+    print("=" * 70)
+    print("INFORME")
+    print("=" * 70)
+    print(report)
+    print("=" * 70)
+    print("")
 
-    print(f"-> Publicant a Slack...")
-    post_to_slack(slack_url, f"*Fraude Bikes — resum diari*\n{summary}")
-    print(f"   publicat.")
+    print(f"-> Enviant a Slack...")
+    status = send_to_slack(report)
+    print(f"   ✓ enviat (status {status})")
 
 
 if __name__ == "__main__":
