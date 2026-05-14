@@ -1,6 +1,7 @@
 """Fraude Bikes — anàlisi automàtica del report de Mode.
 
-Step 5: pipeline Mode complet — trigger + polling + fetch de les 7 queries.
+Pipeline complet: trigger Mode + polling + fetch de les queries incloses,
+resum executiu via GROQ i publicació a un canal de Slack.
 Guarda els resultats crus a out/last_run.json per facilitar el debug.
 """
 import json
@@ -18,6 +19,10 @@ MODE_ACCOUNT = "ecooltra706"
 REPORT_TOKEN = "3c6ce1fafa97"
 MODE_BASE_URL = f"https://app.mode.com/api/{MODE_ACCOUNT}"
 HTTP_TIMEOUT = 30
+
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_TIMEOUT = 60
 
 POLL_INTERVAL_SECONDS = 5
 POLL_TIMEOUT_SECONDS = 300
@@ -130,6 +135,55 @@ def save_raw_results(results, run_token):
     return path
 
 
+def build_groq_prompt(results):
+    """Construeix el prompt per GROQ amb les dades crues de les queries."""
+    parts = [
+        "Tens a continuació les dades de les queries del report 'Fraude Bikes' (Mode Analytics).",
+        "",
+    ]
+    for name, rows in results.items():
+        parts.append(f"## {name}")
+        parts.append(f"Files: {len(rows)}")
+        parts.append("Dades (JSON):")
+        parts.append("```json")
+        parts.append(json.dumps(rows, ensure_ascii=False, default=str))
+        parts.append("```")
+        parts.append("")
+    parts.append(
+        "Genera un resum executiu curt en català (3-5 bullets) amb els KPIs i "
+        "xifres més rellevants. Format: bullets en markdown amb números concrets. "
+        "No afegeixis cap introducció ni conclusió."
+    )
+    return "\n".join(parts)
+
+
+def call_groq(api_key, prompt):
+    response = requests.post(
+        GROQ_URL,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": GROQ_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2,
+        },
+        timeout=GROQ_TIMEOUT,
+    )
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"].strip()
+
+
+def post_to_slack(webhook_url, text):
+    response = requests.post(
+        webhook_url,
+        json={"text": text},
+        timeout=HTTP_TIMEOUT,
+    )
+    response.raise_for_status()
+
+
 def print_summary(results):
     print("")
     print(f"   {'Query':<40} {'Files':>7}  {'Columnes'}")
@@ -176,6 +230,20 @@ def main():
 
     print(f"-> Resum:")
     print_summary(results)
+
+    groq_key = os.environ.get("GROQ_API_KEY")
+    slack_url = os.environ.get("SLACK_WEBHOOK_URL")
+    if not groq_key or not slack_url:
+        print("-> GROQ_API_KEY o SLACK_WEBHOOK_URL no definits; saltant pas de notificació.")
+        return
+
+    print(f"-> Generant resum executiu amb GROQ ({GROQ_MODEL})...")
+    summary = call_groq(groq_key, build_groq_prompt(results))
+    print(f"   resum ({len(summary)} chars) generat.")
+
+    print(f"-> Publicant a Slack...")
+    post_to_slack(slack_url, f"*Fraude Bikes — resum diari*\n{summary}")
+    print(f"   publicat.")
 
 
 if __name__ == "__main__":
