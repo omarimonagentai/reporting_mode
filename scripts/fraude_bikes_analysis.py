@@ -206,7 +206,57 @@ def markdown_to_slack(text):
     return text
 
 
-def send_to_slack(report_text):
+CHART_BAR_WIDTH = 28
+
+
+def render_revenue_chart(results):
+    """Genera un bar chart ASCII de REVENUE_PER_VEHICLE per ciutat, mes més recent.
+
+    Retorna una string multilínia (sense fence) o '' si falten dades.
+    Comparable amb monoespai dins d'un code block de Slack.
+    """
+    rentals = results.get("Unit Economics over RENTALS", []) or []
+    paid = results.get("Unit Economics over PAID INVOICES", []) or []
+    if not rentals or not paid:
+        return ""
+
+    # Mes més recent comú a totes dues queries
+    common_months = {r["MONTH"] for r in rentals} & {p["MONTH"] for p in paid}
+    if not common_months:
+        return ""
+    latest_month = max(common_months)
+
+    paid_latest = sorted(
+        (r["CITY"], float(r["REVENUE_PER_VEHICLE"]))
+        for r in paid if r["MONTH"] == latest_month
+    )
+    rentals_latest = sorted(
+        (r["CITY"], float(r["REVENUE_PER_VEHICLE"]))
+        for r in rentals if r["MONTH"] == latest_month
+    )
+
+    all_values = [v for _, v in paid_latest + rentals_latest]
+    if not all_values:
+        return ""
+    max_val = max(all_values)
+    label_width = max(len(c) for c, _ in paid_latest + rentals_latest)
+
+    def format_group(title, rows):
+        lines = [title]
+        for city, value in rows:
+            bar_len = int(round((value / max_val) * CHART_BAR_WIDTH))
+            bar = "█" * bar_len
+            lines.append(f"  {city:<{label_width}}  {bar:<{CHART_BAR_WIDTH}}  {value:>7.2f}")
+        return lines
+
+    out = [f"Revenue per vehicle — {latest_month} (€)", ""]
+    out.extend(format_group("Net (PAID INVOICES):", paid_latest))
+    out.append("")
+    out.extend(format_group("Gross (RENTALS):", rentals_latest))
+    return "\n".join(out)
+
+
+def send_to_slack(report_text, chart_text=""):
     webhook = os.environ.get("SLACK_WEBHOOK_URL")
     if not webhook:
         sys.exit("ERROR: SLACK_WEBHOOK_URL no està definit.")
@@ -214,6 +264,8 @@ def send_to_slack(report_text):
     formatted = markdown_to_slack(report_text)
     today_str = date.today().strftime("%d/%m/%Y")
     body = f"📊 *Fraude Bikes — Informe {today_str}*\n\n{formatted}"
+    if chart_text:
+        body += f"\n\n```\n{chart_text}\n```"
 
     response = requests.post(
         webhook,
@@ -284,8 +336,15 @@ def main():
     print("=" * 70)
     print("")
 
+    chart = render_revenue_chart(results)
+    if chart:
+        print("")
+        print("CHART:")
+        print(chart)
+        print("")
+
     print(f"-> Enviant a Slack...")
-    status = send_to_slack(report)
+    status = send_to_slack(report, chart)
     print(f"   ✓ enviat (status {status})")
 
 
