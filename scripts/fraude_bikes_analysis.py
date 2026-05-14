@@ -44,9 +44,12 @@ SLACK_TIMEOUT = 10
 
 SYSTEM_PROMPT = """You are a senior data analyst at Cooltra, a shared mobility company operating eBike fleets in European cities.
 
-Write an executive brief in English for the operations leadership team, based on the Unit Economics data provided. The data contains two queries:
-- "Unit Economics over PAID INVOICES" — NET revenue (after credit notes) per city per month.
-- "Unit Economics over RENTALS" — GROSS revenue (rentals generated, before invoicing) per city per month.
+Write an executive brief in English for the operations leadership team, based on the Unit Economics data provided. The data contains two queries that measure DIFFERENT things — they are not the same metric in different states:
+
+- "Unit Economics over PAID INVOICES" — Invoices paid: revenue from invoices in PAID state (after credit notes). Reflects money actually billed and collected for the period.
+- "Unit Economics over RENTALS" — Revenue from rentals: revenue from rentals generated in the period, independent of invoicing status. Reflects rental value created.
+
+These are two parallel views on the business, with a lag between them: a rental generated in April typically gets invoiced and paid in May or later. Do not describe their relationship as "net vs gross" — it is invoicing-collection vs rental-generation, with timing differences.
 
 Output exactly three markdown sections, in this order:
 
@@ -54,7 +57,7 @@ Output exactly three markdown sections, in this order:
 ~80 words. The single most important shift or trend visible in the data.
 
 ## Insights
-~120 words. Concrete observations with specific numbers: month-over-month growth rates, inter-city comparisons, gross vs net deltas, revenue-per-vehicle differentials. Always cite numbers directly from the data.
+~120 words. Concrete observations with specific numbers: month-over-month growth rates, inter-city comparisons, the lag between rental revenue and paid-invoice revenue per city, revenue-per-vehicle differentials. Always cite numbers directly from the data.
 
 ## Recommendations
 ~100 words. Three to four actions. Each recommendation MUST: name a specific city, cite a specific number or trend from the data above, and propose a measurable target or next step.
@@ -250,9 +253,9 @@ def render_revenue_chart(results):
         return lines
 
     out = [f"Revenue per vehicle — {latest_month} (€)", ""]
-    out.extend(format_group("Net (PAID INVOICES):", paid_latest))
+    out.extend(format_group("Invoices paid:", paid_latest))
     out.append("")
-    out.extend(format_group("Gross (RENTALS):", rentals_latest))
+    out.extend(format_group("Revenue from rentals:", rentals_latest))
     return "\n".join(out)
 
 
