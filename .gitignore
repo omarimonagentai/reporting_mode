@@ -26,3 +26,6 @@ Thumbs.db
 # Logs / artifacts
 *.log
 out/
+
+# Dashboard build output (deployed to Pages from CI)
+docs/
