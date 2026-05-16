@@ -458,8 +458,8 @@ export function BriefForm(props: Props) {
             <Button type="submit" size="sm" disabled={isSaving}>
               {isSaving
                 ? isCreate
-                  ? "Creant…"
-                  : "Desant…"
+                  ? "Creating…"
+                  : "Saving…"
                 : isCreate
                 ? "Create"
                 : "Save"}
@@ -617,7 +617,7 @@ export function BriefForm(props: Props) {
         <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Esborrar brief?</DialogTitle>
+              <DialogTitle>Delete brief?</DialogTitle>
               <DialogDescription>
                 Vols esborrar <span className="font-mono">{props.filename}.yml</span>?
                 Aquesta acció és recuperable des de l&apos;historial de git, però la
@@ -639,7 +639,7 @@ export function BriefForm(props: Props) {
                 onClick={onDelete}
                 disabled={isDeleting}
               >
-                {isDeleting ? "Esborrant…" : "Esborrar"}
+                {isDeleting ? "Deleting…" : "Delete"}
               </Button>
             </DialogFooter>
           </DialogContent>

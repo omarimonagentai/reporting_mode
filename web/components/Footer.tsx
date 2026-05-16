@@ -25,7 +25,7 @@ export async function Footer() {
     buildLine = `Built ${commit.sha.slice(0, 7)}`;
     timeLine = formatCatalunya(commit.authoredAt);
   } catch {
-    buildLine = "Version info unavailable";
+    buildLine = "Versió no disponible";
   }
 
   return (

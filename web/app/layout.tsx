@@ -40,7 +40,7 @@ export default function RootLayout({
               <Suspense
                 fallback={
                   <div className="px-4 py-4 text-xs text-zinc-400">
-                    Loading briefs…
+                    Carregant briefs…
                   </div>
                 }
               >
@@ -50,7 +50,7 @@ export default function RootLayout({
             <Suspense
               fallback={
                 <div className="px-4 py-3 text-[11px] text-zinc-400 font-mono">
-                  Loading version…
+                  Carregant versió…
                 </div>
               }
             >

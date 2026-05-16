@@ -3,25 +3,27 @@ import { z } from "zod";
 const CRON_5_FIELD = /^\S+\s+\S+\s+\S+\s+\S+\s+\S+$/;
 
 export const querySchema = z.object({
-  token: z.string().min(1, "Query token is required"),
+  token: z.string().min(1, "El Query token és obligatori"),
   csv: z.boolean(),
 });
 
 export const sourceSchema = z.object({
-  mode_report_token: z.string().min(1, "Mode report token is required"),
-  queries: z.array(querySchema).min(1, "A source needs at least one query"),
+  mode_report_token: z.string().min(1, "El Mode report token és obligatori"),
+  queries: z
+    .array(querySchema)
+    .min(1, "Cal almenys una Query dins de cada Source"),
 });
 
 export const briefSchema = z.object({
-  name: z.string().min(1, "Brief name is required"),
+  name: z.string().min(1, "El Name és obligatori"),
   schedule: z
     .string()
-    .min(1, "Schedule is required")
-    .regex(CRON_5_FIELD, "Cron expression must have 5 fields"),
-  timezone: z.string().min(1, "Timezone is required"),
-  slack_channel: z.string().min(1, "Slack channel is required"),
-  sources: z.array(sourceSchema).min(1, "At least one source is required"),
-  prompt: z.string().min(1, "Prompt is required"),
+    .min(1, "El Schedule és obligatori")
+    .regex(CRON_5_FIELD, "El Schedule ha de ser una expressió cron de 5 camps"),
+  timezone: z.string().min(1, "La Timezone és obligatòria"),
+  slack_channel: z.string().min(1, "El Slack channel és obligatori"),
+  sources: z.array(sourceSchema).min(1, "Cal almenys un Source"),
+  prompt: z.string().min(1, "El Prompt és obligatori"),
   owner_email: z.string().email().nullable().optional(),
 });
 
