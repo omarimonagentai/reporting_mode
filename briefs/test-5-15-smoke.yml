@@ -1,0 +1,11 @@
+name: Test 5.15 smoke
+schedule: 45 * * * *
+slack_channel: test-github-oriol
+reference_link: https://omarimonagentai.github.io/meteo_company/meteo_dashboard.html
+sources:
+  - mode_report_token: 7b89f8a2f8d8
+    queries:
+      - token: 4c71991707f0
+        csv: true
+prompt: Indica quants caràcters té l'arxiu CSV. No inventis. No escriguis més de 5 paraules en total.
+owner_email: null
