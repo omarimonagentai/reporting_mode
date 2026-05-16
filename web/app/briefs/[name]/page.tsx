@@ -31,9 +31,6 @@ export default async function BriefDetailPage({ params }: Params) {
           <h1 className="text-2xl font-semibold text-zinc-900 truncate">
             {brief.name}
           </h1>
-          <p className="mt-1 text-sm text-zinc-500 font-mono truncate">
-            {name}.yml
-          </p>
         </div>
         <div className="shrink-0">
           <RunNowButton mode="existing" filename={name} />
@@ -53,7 +50,6 @@ export default async function BriefDetailPage({ params }: Params) {
           filename={name}
           initialBrief={brief}
           initialSha={sha}
-          loadedAt={new Date().toISOString()}
         />
       </div>
     </div>
