@@ -10,7 +10,6 @@ sources:
 prompt: |-
   Mostra la fila més recent de les dades per iOS i la més recent per Android.
   Fes una interpretació de les dades en 1 frase.
-  Afegeix un link a https://cooltra.com que sigui clicable.
 
   Estructura del brief (200 palabras, sin secciones explícitas, párrafos cortos)
 
