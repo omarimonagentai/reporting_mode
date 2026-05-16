@@ -1,20 +1,13 @@
-# Brief: combines Unit Economics paid-invoice revenue with rental revenue
-# from the Fraude Bikes Mode report. Produces an executive brief in English
-# that compares the two views and surfaces the lag between rental generation
-# and invoice collection.
-
-name: "Fraude Bikes — Unit Economics"
-schedule: "0 8 * * *"            # daily at 08:00, Catalunya local time
+name: Fraude Bikes — Unit Economics
+schedule: 30 9 * * *
 slack_channel: test-github-oriol
-
 sources:
   - mode_report_token: 3c6ce1fafa97
     queries:
-      - token: c9ab8392aad6       # Unit Economics over PAID INVOICES
+      - token: c9ab8392aad6
         csv: true
-      - token: 0f1ea51d4f3b       # Unit Economics over RENTALS
+      - token: 0f1ea51d4f3b
         csv: true
-
 prompt: |
   You are a senior data analyst at Cooltra, a shared mobility company operating eBike fleets in European cities.
 
@@ -41,3 +34,4 @@ prompt: |
   - Use the `##` markdown header syntax exactly as shown.
   - Never use vague verbs like "consider", "explore", "look into", "evaluate". Use specific verbs: "increase X to Y by Q", "audit Z before date W", "test pricing tier V in city U".
   - The audience already knows the business — deliver analytical insight, not background.
+owner_email: null
