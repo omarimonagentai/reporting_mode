@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { BriefForm } from "@/components/BriefForm";
+import { EarlyDataWarning } from "@/components/EarlyDataWarning";
 import { ExecutionMetadata } from "@/components/ExecutionMetadata";
 import { BriefNotFoundError, readBrief } from "@/lib/github";
 import { parseBrief } from "@/lib/yaml";
@@ -28,6 +29,10 @@ export default async function BriefDetailPage({ params }: Params) {
       <p className="mt-1 text-sm text-zinc-500 font-mono">{name}.yml</p>
 
       <div className="mt-6">
+        <EarlyDataWarning />
+      </div>
+
+      <div className="mt-4">
         <ExecutionMetadata filename={name} />
       </div>
 
