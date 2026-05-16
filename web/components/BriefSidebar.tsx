@@ -1,7 +1,5 @@
-import Link from "next/link";
-import { Plus } from "lucide-react";
 import { BriefSidebarList } from "@/components/BriefSidebarList";
-import { Button } from "@/components/ui/button";
+import { SidebarNav } from "@/components/SidebarNav";
 import { getBriefListWithRuns, type BriefListItemWithRun } from "@/lib/briefs";
 
 export async function BriefSidebar() {
@@ -15,12 +13,7 @@ export async function BriefSidebar() {
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <Button asChild size="sm" className="w-full justify-start">
-        <Link href="/briefs/new">
-          <Plus />
-          New brief
-        </Link>
-      </Button>
+      <SidebarNav />
 
       {errorMessage ? (
         <div className="px-2 text-xs text-red-600">
