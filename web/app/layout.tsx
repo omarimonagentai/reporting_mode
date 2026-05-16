@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { BriefSidebar } from "@/components/BriefSidebar";
 import { Footer } from "@/components/Footer";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 const inter = Inter({
@@ -23,6 +24,8 @@ export const metadata: Metadata = {
   description: "Manage scheduled briefs",
 };
 
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -34,6 +37,7 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
+        <TooltipProvider>
         <div className="flex min-h-screen">
           <aside className="w-[280px] shrink-0 border-r border-zinc-200 bg-white flex flex-col">
             <div className="flex-1 overflow-y-auto">
@@ -61,6 +65,7 @@ export default function RootLayout({
           <main className="flex-1 overflow-y-auto">{children}</main>
         </div>
         <Toaster />
+        </TooltipProvider>
       </body>
     </html>
   );

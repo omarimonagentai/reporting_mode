@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import {
   BriefNotFoundError,
@@ -58,6 +59,7 @@ export async function PUT(
   try {
     const content = serializeBrief(parsed.data);
     const result = await writeBrief(name, content, payload.sha);
+    revalidatePath("/", "layout");
     return NextResponse.json({ sha: result.sha });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -86,6 +88,7 @@ export async function DELETE(
 
   try {
     await deleteBrief(name, payload.sha);
+    revalidatePath("/", "layout");
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

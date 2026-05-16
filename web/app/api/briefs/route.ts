@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { getBriefList } from "@/lib/briefs";
 import { BriefAlreadyExistsError, writeBrief } from "@/lib/github";
@@ -41,6 +42,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     const content = serializeBrief(parsed.data);
     await writeBrief(filename, content);
+    revalidatePath("/", "layout");
     return NextResponse.json({ filename }, { status: 201 });
   } catch (err) {
     if (err instanceof BriefAlreadyExistsError) {
