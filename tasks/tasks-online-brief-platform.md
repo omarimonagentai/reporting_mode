@@ -144,26 +144,23 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
       - YAMLs: both fixtures lost their `timezone:` field (the briefs are dummy fixtures so the resulting time shift for `fraude-bikes` has no production impact).
     - **Tasks 5.1–5.3 closed as part of this commit** (CSV-per-query in executor + YAML migrations). The user confirmed the existing briefs are dummy fixtures, so doing the migration alongside the TZ change was safer than keeping two schemas in flight.
 
-- [ ] **3.0 Specialised form widgets: cron visual builder + Slack channel combobox**
-  - [ ] 3.1 Implement `web/lib/cron.ts`: a `buildCron(state)` function that takes `{frequency, days, hour, minute}` and returns a canonical 5-field cron string; an inverse `parseCron(cron)` that returns the state or `null` when the cron doesn't fit the grid.
-  - [ ] 3.2 Add a `humanize(cron, locale)` helper that returns "Cada dimarts a les 10:00" style strings in Catalan.
-  - [ ] 3.3 Implement `web/components/CronBuilder.tsx`: three vertical sections.
-    - Section 1: Frequency — radio group: every day / specific days of week (multi-checkbox) / day of month.
-    - Section 2: Time — hour dropdown (00-23) + minute dropdown (00, 15, 30, 45).
-    - Section 3: Timezone — dropdown defaulting to `Europe/Madrid`, options include UTC and major Cooltra-relevant TZs.
-  - [ ] 3.4 Below the builder, render a live preview: the human-readable string in normal text, and the generated cron + timezone in muted monospace.
-  - [ ] 3.5 In `BriefForm`, replace the raw `schedule` and `timezone` inputs with `<CronBuilder>`. The builder's value is bound to those two fields in the form state.
-  - [ ] 3.6 When loading an existing brief, call `parseCron(cron)` to initialise the builder state. If the cron is "off-grid" (e.g., minute=7), display "Custom: 7 8 * * *" with a raw input and skip the builder until the user resets.
-  - [ ] 3.7 Implement `web/lib/slack.ts`: a `listChannels()` helper that calls `conversations.list` with `types=public_channel,private_channel`, filters `is_member=true`, follows pagination via cursor, returns `[{id, name, is_private}]`.
-  - [ ] 3.8 Implement `web/app/api/channels/route.ts`: caches the result of `listChannels()` in a module-level Map with 5-minute TTL. Returns the cached value when fresh; refetches otherwise.
-  - [ ] 3.9 **User action (cannot be coded)**: in Slack app config (`api.slack.com/apps`), add bot scopes `channels:read` and `groups:read`; reinstall the app to the workspace (likely requires admin approval); copy the new Bot Token; update `SLACK_BOT_TOKEN` in Vercel env vars.
-  - [ ] 3.10 Implement `web/components/ChannelCombobox.tsx` using shadcn's Command + Popover pattern: a button shows the current value; clicking opens a popover with a search input and the filtered channel list.
-  - [ ] 3.11 Each channel option renders the icon (`#` public, `🔒` private) + name in `font-mono`.
-  - [ ] 3.12 Allow free-text entry: typed input that doesn't match any channel is accepted as a custom value when the user presses Enter or selects "Use «typed-name»".
-  - [ ] 3.13 If the current value is NOT in the channel list (bot not a member), render below the combobox a shadcn `Alert` with warning variant: "El bot no és al canal #X. Afegeix-lo amb `/invite @<bot-name>` a Slack abans del proper run." + a small Copy button next to the snippet.
-  - [ ] 3.14 Copy button copies `/invite @<bot-name>` to clipboard and triggers a transient "Copiat!" toast (~2 seconds).
-  - [ ] 3.15 In `BriefForm`, replace the raw `slack_channel` text input with `<ChannelCombobox>`.
-  - [ ] 3.16 Implement stale-while-revalidate polling: the combobox refetches the channel list every 5 minutes in the background. If the list arrives and the previous "bot not in channel" warning becomes invalid, dismiss the warning automatically.
+- [x] **3.0 Specialised form widgets: cron visual builder + Slack channel combobox** ✅
+  - [x] 3.1 `web/lib/cron.ts` ships `buildCron(state)` and `parseCron(cron)` for the daily / weekly-by-days / monthly-by-day-of-month grid. Hours 0–23, minutes locked to 0 / 15 / 30 / 45. `parseCron` returns null for any off-grid cron so the UI can fall back to a raw input.
+  - [x] 3.2 `humanize(cron)` in the same file returns Catalan sentences using day names diumenge → dissabte ("Cada dia a les 10:00", "Cada dilluns i dimecres a les 09:15", "El dia 15 de cada mes a les 08:00").
+  - [x] 3.3 `web/components/CronBuilder.tsx` — **two sections, not three**: Frequency (Select with daily / dies de la setmana / dia del mes; conditional UI per kind) + Time (hour Select 00–23 and minute Select 00/15/30/45). The Time Zone section from the original spec was dropped after task 2.24 removed the per-brief timezone field (company-wide hardcoded TZ).
+  - [x] 3.4 Live preview renders below the controls: humanise() output in normal text, generated cron in `font-mono text-xs text-zinc-500`.
+  - [x] 3.5 `BriefForm` swaps the raw `schedule` Input for `<CronBuilder>` via `Controller`. View mode uses a small `SchedulePreview` helper (humanise() + cron in muted mono) instead of the plain `ReadonlyValue`. (No `timezone` to replace; that field was removed in 2.24.)
+  - [x] 3.6 Off-grid cron handling: `parseCron` returns null → CronBuilder renders a raw `font-mono` Input plus an amber "Custom" badge, an explanation, and a "Reset to builder" button that drops back to the daily 08:00 default. The `lastEmittedRef` guard prevents reset(brief) loops when RHF re-syncs values.
+  - [x] 3.7 `web/lib/slack.ts:listChannels()` calls `conversations.list` with `types=public_channel,private_channel`, follows cursor pagination, filters to `is_member=true`, and returns sorted `[{id, name, is_private}]`.
+  - [x] 3.8 `web/app/api/channels/route.ts` caches the result in a module-level entry with a 5-minute TTL. `?force=true` busts the cache.
+  - [ ] 3.9 **User action (cannot be coded; STILL PENDING)**: in Slack app config (`api.slack.com/apps`), add bot scopes `channels:read` and `groups:read`; reinstall the app to the workspace (likely requires admin approval); copy the new Bot Token; update `SLACK_BOT_TOKEN` in Vercel env vars. Until this is done, `/api/channels` returns 502 with the Slack error and the combobox shows the error state but the rest of the form is unaffected.
+  - [x] 3.10 `web/components/ChannelCombobox.tsx` uses shadcn Command inside a Popover. Trigger button shows the current value with a `#` or 🔒 icon and the channel name in `font-mono`; chevron-up-down icon on the right.
+  - [x] 3.11 Each option renders the icon + name in `font-mono`, with a Check icon on the currently-selected one.
+  - [x] 3.12 Free-text entry: when the typed query doesn't exact-match any channel, a "Use «typed-name»" item appears below the list. Enter on the input or click commits the typed value.
+  - [x] 3.13 When the saved value isn't in the latest channel list, an amber shadcn `Alert` renders below the combobox: «El bot no és al canal #<name>» plus the invite snippet and a Copy button.
+  - [x] 3.14 Copy button writes `/invite @cooltra-reporting-bot` to clipboard via `navigator.clipboard.writeText` and toasts "Copiat!" (2s) via sonner. Falls back to an error toast if the clipboard API fails.
+  - [x] 3.15 `BriefForm`'s Slack Channel input swaps in `<ChannelCombobox>` via `Controller`. View mode keeps the existing `ReadonlyValue`. `aria-invalid` propagation is replaced by a conditional className on the combobox trigger button (the underlying `<button>` doesn't accept `aria-invalid` per ARIA, so we apply the red border / ring directly).
+  - [x] 3.16 Stale-while-revalidate: the combobox kicks off a 5-minute `setInterval` on mount that re-hits `/api/channels` in the background. When the bot gets invited to a new channel between renders, the next poll picks it up and the bot-not-in-channel warning disappears automatically because the match check re-runs against the fresh list.
 
 - [ ] **4.0 Execution tracking + per-brief metadata**
   - [ ] 4.1 Modify `scripts/executor.py`: capture `response.usage.prompt_tokens` and `response.usage.completion_tokens` from the Groq response object in `generate_brief()`. Store them on the brief execution record.
