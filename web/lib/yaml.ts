@@ -6,7 +6,6 @@ type RawSource = { mode_report_token: string; queries: RawQuery[] };
 type RawBrief = {
   name: string;
   schedule: string;
-  timezone?: string;
   slack_channel: string;
   csv?: boolean;
   sources: RawSource[];
@@ -34,7 +33,6 @@ export function parseBrief(content: string): Brief {
   return briefSchema.parse({
     name: raw.name,
     schedule: raw.schedule,
-    timezone: raw.timezone ?? "Europe/Madrid",
     slack_channel: raw.slack_channel,
     sources,
     prompt: raw.prompt,
@@ -46,7 +44,6 @@ export function serializeBrief(brief: Brief): string {
   const ordered = {
     name: brief.name,
     schedule: brief.schedule,
-    timezone: brief.timezone,
     slack_channel: brief.slack_channel,
     sources: brief.sources.map((src) => ({
       mode_report_token: src.mode_report_token,

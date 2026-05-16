@@ -3,15 +3,14 @@
 # based on rental events.
 
 name: "App Version Adoption"
-schedule: "0 10 * * *"          # daily at 10:00 local Cooltra time
-timezone: "Europe/Madrid"        # interpret schedule in Madrid local time (handles DST)
+schedule: "0 10 * * *"           # daily at 10:00, Catalunya local time
 slack_channel: test-github-oriol
-csv: true                        # attach raw query data as CSV thread reply
 
 sources:
   - mode_report_token: 7b89f8a2f8d8
     queries:
-      - 4c71991707f0   # Version_evolution
+      - token: 4c71991707f0       # Version_evolution
+        csv: true
 
 prompt: |
   Eres analista de producto en Cooltra. Genera un mini-brief en castellano para el equipo de Producto sobre la adopción de versiones de la app móvil, basado en los datos proporcionados.

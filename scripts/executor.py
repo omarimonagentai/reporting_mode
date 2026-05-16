@@ -3,8 +3,9 @@
 Reads a brief YAML config, triggers each required Mode report, fetches the
 specified queries from each, composes a single LLM prompt with all the data,
 generates an executive brief, and posts it to Slack via Bot Token API
-(chat.postMessage), optionally attaching the raw data as CSV files in a
-thread reply (files_upload_v2) when the brief has `csv: true`.
+(chat.postMessage). Each query can opt into having its raw rows attached as
+a CSV file in a thread reply (files_upload_v2) via the per-query `csv: true`
+flag.
 
 Usage:
     python scripts/executor.py briefs/<brief>.yml
@@ -12,13 +13,13 @@ Usage:
 The brief YAML schema (see briefs/*.yml for examples):
     name: str
     schedule: cron string                (read by due_runner.py, ignored here)
-    timezone: IANA tz name               (optional; used by due_runner.py)
     slack_channel: str                   (target channel for chat.postMessage)
-    csv: bool                            (optional; if true, attach raw CSVs)
     sources:
       - mode_account: str                (optional; falls back to env var)
         mode_report_token: str
-        queries: [token, ...]            (12-char Mode query tokens)
+        queries:                         (list of objects)
+          - token: str                   (12-char Mode query token)
+            csv: bool                    (optional; defaults to false)
     prompt: str                          (multiline, inline)
 """
 import csv as csv_module
@@ -195,11 +196,23 @@ def resolve_query_tokens(auth, account, report_token, requested_tokens):
 def fetch_source(auth, source):
     """Trigger + poll + fetch for one source.
 
-    Returns (report_title, dict {query_name: rows}).
+    Returns (report_title, {query_name: rows}, {query_name: csv_flag}).
+
+    Accepts both the new query shape ({token, csv}) and the legacy
+    bare-string shape (treated as csv=False).
     """
     account = resolve_account(source)
     report_token = source["mode_report_token"]
-    requested_tokens = list(source["queries"])
+
+    requested_tokens = []
+    csv_by_token = {}
+    for q in source["queries"]:
+        if isinstance(q, str):
+            requested_tokens.append(q)
+            csv_by_token[q] = False
+        else:
+            requested_tokens.append(q["token"])
+            csv_by_token[q["token"]] = bool(q.get("csv", False))
 
     meta = get_report_metadata(auth, account, report_token)
     title = meta["name"]
@@ -209,6 +222,7 @@ def fetch_source(auth, source):
     for tok, name in token_to_name.items():
         print(f"     {tok} → \"{name}\"")
     desired = set(token_to_name.values())
+    csv_by_name = {token_to_name[t]: csv_by_token[t] for t in requested_tokens}
 
     print(f"-> [{title}] Disparant run del report '{report_token}'...")
     run_token = trigger_report(auth, account, report_token)
@@ -234,11 +248,12 @@ def fetch_source(auth, source):
         results[name] = rows
         print(f"     {len(rows)} files")
 
-    return title, results
+    return title, results, csv_by_name
 
 
 def build_user_message(sources_data):
-    """sources_data is list of (source_dict, report_title, {query_name: rows}).
+    """sources_data is list of (source_dict, report_title,
+    {query_name: rows}, {query_name: csv_flag}).
 
     Data is serialised as compact JSON (no whitespace) to minimise the token
     count sent to the LLM. Modern LLMs parse compact JSON without trouble; the
@@ -246,7 +261,7 @@ def build_user_message(sources_data):
     The saved JSON file (out/<slug>.raw.json) keeps indent for human readability.
     """
     parts = [f"Today's date: {date.today().isoformat()}", ""]
-    for source, title, results in sources_data:
+    for _source, title, results, _csv_by_name in sources_data:
         for query_name, rows in results.items():
             parts.append(f'## Query: "{query_name}" (from report "{title}")')
             parts.append("```json")
@@ -344,26 +359,31 @@ def post_brief_to_slack(brief, sources_data, brief_text):
     channel_id = response["channel"]
     print(f"   ✓ missatge postejat (channel_id={channel_id}, ts={thread_ts})")
 
-    if not brief.get("csv"):
+    today_iso = date.today().isoformat()
+    csv_queue = []
+    for _source, _title, results, csv_by_name in sources_data:
+        for query_name, rows in results.items():
+            if csv_by_name.get(query_name):
+                csv_queue.append((query_name, rows))
+
+    if not csv_queue:
         return
 
-    today_iso = date.today().isoformat()
     print("-> Pujant CSVs com a thread replies...")
-    for source, title, results in sources_data:
-        for query_name, rows in results.items():
-            if not rows:
-                print(f"   - {query_name}: 0 files, omès")
-                continue
-            csv_content = rows_to_csv(rows)
-            filename = f"{slugify_for_filename(query_name)}_{today_iso}.csv"
-            client.files_upload_v2(
-                channel=channel_id,
-                thread_ts=thread_ts,
-                content=csv_content,
-                filename=filename,
-                title=query_name,
-            )
-            print(f"   ✓ {filename} ({len(rows)} files)")
+    for query_name, rows in csv_queue:
+        if not rows:
+            print(f"   - {query_name}: 0 files, omès")
+            continue
+        csv_content = rows_to_csv(rows)
+        filename = f"{slugify_for_filename(query_name)}_{today_iso}.csv"
+        client.files_upload_v2(
+            channel=channel_id,
+            thread_ts=thread_ts,
+            content=csv_content,
+            filename=filename,
+            title=query_name,
+        )
+        print(f"   ✓ {filename} ({len(rows)} files)")
 
 
 def save_artifacts(brief, sources_data, brief_text):
@@ -379,7 +399,7 @@ def save_artifacts(brief, sources_data, brief_text):
                 "report_title": title,
                 "queries": results,
             }
-            for source, title, results in sources_data
+            for source, title, results, _csv_by_name in sources_data
         ],
     }
     (OUT_DIR / f"{slug}.raw.json").write_text(
@@ -403,8 +423,8 @@ def main():
 
     sources_data = []
     for source in brief["sources"]:
-        title, results = fetch_source(auth, source)
-        sources_data.append((source, title, results))
+        title, results, csv_by_name = fetch_source(auth, source)
+        sources_data.append((source, title, results, csv_by_name))
 
     print(f"-> Generant brief amb {LLM_MODEL}...")
     user_message = build_user_message(sources_data)

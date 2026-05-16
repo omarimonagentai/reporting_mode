@@ -20,7 +20,6 @@ export const briefSchema = z.object({
     .string()
     .min(1, "El Schedule és obligatori")
     .regex(CRON_5_FIELD, "El Schedule ha de ser una expressió cron de 5 camps"),
-  timezone: z.string().min(1, "La Time Zone és obligatòria"),
   slack_channel: z.string().min(1, "El Slack Channel és obligatori"),
   sources: z.array(sourceSchema).min(1, "Cal almenys un Source"),
   prompt: z.string().min(1, "El Prompt és obligatori"),
