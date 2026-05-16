@@ -125,6 +125,19 @@ T4. Adding the Run Now button requires extending the platform's GitHub PAT scope
 
 38. The `mode_report_token` and `queries[].token` form fields MUST eventually be replaced by name-based comboboxes populated from the Cooltra Mode space (`https://app.mode.com/ecooltra706/spaces/9d367a761ba1`). The user picks reports / queries by their human-readable name; the YAML still stores the underlying tokens. Implementation tracked as task 8.0; deferred for now. The current free-text inputs remain functional as the fallback path even after the comboboxes ship (Mode API down / token not in catalog / etc.).
 
+### Brief output history (future capability)
+
+The platform produces brief content that lives **only in Slack** — scattered across multiple channels (one per brief), inaccessible to anyone without channel access, and impossible to compare across runs. A future capability captures every successful GROQ output and surfaces the last N entries per brief through the web app. The first iteration is **backend-only** (capture + storage + API); the UI shape for surfacing these outputs (landing feed, per-brief history view, or combination) is a separate decision to make once data is flowing.
+
+39. Every successful brief execution MUST produce a `out/<filename-slug>.brief.md` file containing the **raw markdown returned by GROQ** (the value before `markdown_to_slack()` conversion). The capture is best-effort and never blocks the Slack post: a failure to write `.brief.md` MUST be logged as a warning, never raised; the executor's `.run.json` and Slack post continue as today.
+40. Failed runs (where GROQ produced no text — Mode failure, GROQ exception, etc.) MUST NOT produce a `.brief.md`. The future UI surfaces these as "sense output capturat" alongside the existing `failed` status.
+41. Both GitHub Actions workflows (`run-brief.yml`, `run-due-briefs.yml`) MUST extend their `actions/upload-artifact` glob to include `out/*.brief.md` alongside `out/*.run.json`. Artifact names, prefixes (`run-*` / `runs-due-*`) and 90-day retention remain unchanged.
+42. A new endpoint `GET /api/briefs/[name]/outputs` MUST return up to **3** most-recent brief outputs as `{ outputs: BriefOutput[] }`, where each entry is `{ markdown, created_at, artifact_name, run_status }`. The endpoint MUST reuse the existing artifact-listing primitives (same patterns used by `/api/runs/[brief]`), validate the brief exists via `readBrief` (404 otherwise), cache results in memory for 5 minutes (bustable via `?force=true`), and return 502 with the upstream message on Mode / GitHub failure.
+43. The "max 3 outputs per brief" cap is **read-time only**. Artifacts are never deleted by us; they expire naturally after the 90-day GitHub Actions retention. For monthly briefs this happens to align (3 × ~30d ≈ 90d); for higher-frequency briefs the older runs are silently dropped from the API response.
+44. Outputs are accessible to any user authenticated against the web app — same access level as the rest of the platform. No per-brief gating in this iteration. Long-term archival (> 90d) and finer-grained access control are explicitly out of this requirement; the platform-wide future OAuth integration (see §7 Future-readiness for auth) is the proper place to address them.
+
+(Implementation tracked as **task 10.0** — currently deferred. The UI shape — landing feed, per-brief history embed, or a combination — is a separate decision to make after the capture layer is in place.)
+
 ## 5. Non-Goals (Out of Scope)
 
 - **Authentication and per-user briefs**. The platform is openly accessible; everyone sees and edits everything. The data model includes a nullable `owner_email` field reserved for a future auth phase but it is never populated in this version.
@@ -256,6 +269,15 @@ T4. Adding the Run Now button requires extending the platform's GitHub PAT scope
 ### Future-readiness for auth
 - Every brief YAML MUST contain an optional `owner_email: null` field starting from this version. Today the platform never sets it; in a future auth phase, new briefs will be tagged with the logged-in user.
 - All API endpoints MUST be structured to accept an `Authorization` header in the future without restructuring. For now, the header is ignored.
+
+### Brief output history (future capability)
+- **Capture**: the Python executor writes `out/<slug>.brief.md` immediately after `generate_brief()` returns successfully, **before** the Slack post — captures more in failed-Slack scenarios. Best-effort: a write failure logs a warning and lets the executor continue.
+- **Format**: raw GROQ markdown, UTF-8 with trailing newline. No Slack-mrkdwn transformations applied. Web rendering uses a markdown library (e.g. `react-markdown`) when the UI ships.
+- **Workflows**: both artifact upload steps extend their `path:` glob from `out/*.run.json` to also include `out/*.brief.md`. A single scheduler tick may package multiple `.brief.md` files in the same `runs-due-*` zip — one per brief that produced text in that tick.
+- **Web access layer**: new server-only `web/lib/outputs.ts` with `fetchLatestBriefOutputs(slug, limit = 3)` that iterates over recent artifacts, extracts matching `<slug>.brief.md` entries, cross-references the colocated `<slug>.run.json` for status, and returns sorted DESC by artifact `created_at`. Justification for a new module instead of extending `lib/runs.ts`: clear single responsibility — `runs.ts` answers "what's the latest run metadata?", `outputs.ts` answers "what are the last N output bodies?".
+- **API endpoint**: `GET /api/briefs/[name]/outputs` mirrors the patterns of `/api/runs/[brief]` (5-min in-memory cache, `?force=true` busts, 404 on missing brief, 502 on upstream failure).
+- **Retention**: 90 days via GitHub Actions artifacts. Read-time cap of 3 entries per brief in the API response. The combination intentionally gives "exactly 3 runs" for monthly briefs and "the 3 most recent" for higher-frequency briefs.
+- **Order of operations** is an explicit choice: writing `.brief.md` BEFORE the Slack post means a Slack-delivery failure still leaves the captured text behind. Flipping this to AFTER would couple capture to a successful end-to-end run; today's design favours the diagnostic value.
 
 ## 8. Success Metrics
 
