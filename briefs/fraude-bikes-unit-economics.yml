@@ -1,5 +1,5 @@
-name: Fraude Bikes — Unit Economics
-schedule: 30 9 * * *
+name: Fraude Bikes — Unit Economics 1500
+schedule: 0 15 * * *
 slack_channel: test-github-oriol
 sources:
   - mode_report_token: 3c6ce1fafa97
