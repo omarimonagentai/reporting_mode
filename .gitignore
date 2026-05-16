@@ -29,3 +29,6 @@ out/
 
 # Dashboard build output (deployed to Pages from CI)
 docs/
+
+# notes
+notes.md
