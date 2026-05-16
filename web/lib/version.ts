@@ -1,6 +1,5 @@
 export type LatestCommit = {
   sha: string;
-  message: string;
   authoredAt: string;
 };
 
@@ -40,7 +39,6 @@ export async function getLatestCommit(): Promise<LatestCommit> {
 
   return {
     sha: data.sha,
-    message: data.commit.message.split("\n")[0],
     authoredAt: data.commit.author.date,
   };
 }
