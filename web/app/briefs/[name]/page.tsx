@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { BriefForm } from "@/components/BriefForm";
 import { EarlyDataWarning } from "@/components/EarlyDataWarning";
 import { ExecutionMetadata } from "@/components/ExecutionMetadata";
+import { RunNowButton } from "@/components/RunNowButton";
 import { BriefNotFoundError, readBrief } from "@/lib/github";
 import { parseBrief } from "@/lib/yaml";
 
@@ -36,7 +37,11 @@ export default async function BriefDetailPage({ params }: Params) {
         <ExecutionMetadata filename={name} />
       </div>
 
-      <div className="mt-8">
+      <div className="mt-6 flex justify-end">
+        <RunNowButton mode="existing" filename={name} />
+      </div>
+
+      <div className="mt-4">
         <BriefForm
           filename={name}
           initialBrief={brief}

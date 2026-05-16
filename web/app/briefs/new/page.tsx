@@ -1,4 +1,5 @@
 import { BriefForm } from "@/components/BriefForm";
+import { RunNowButton } from "@/components/RunNowButton";
 
 export default function NewBriefPage() {
   return (
@@ -7,7 +8,10 @@ export default function NewBriefPage() {
       <p className="mt-1 text-sm text-zinc-500">
         Omple els camps; el nom del fitxer es derivarà del camp Name.
       </p>
-      <div className="mt-8">
+      <div className="mt-6 flex justify-end">
+        <RunNowButton mode="create" />
+      </div>
+      <div className="mt-4">
         <BriefForm intent="create" />
       </div>
     </div>
