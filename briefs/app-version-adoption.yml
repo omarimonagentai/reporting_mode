@@ -1,4 +1,4 @@
-name: App Version Adoption 2
+name: App Version Adoption
 schedule: 0 10 * * *
 timezone: Europe/Madrid
 slack_channel: test-github-oriol
