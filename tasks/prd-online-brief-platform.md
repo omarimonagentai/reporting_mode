@@ -138,6 +138,23 @@ The platform produces brief content that lives **only in Slack** — scattered a
 
 (Implementation tracked as **task 10.0** — currently deferred. The UI shape — landing feed, per-brief history embed, or a combination — is a separate decision to make after the capture layer is in place.)
 
+### Mode catalog landing (future capability)
+
+The current `/` page is essentially empty — just a heading. With the Mode space catalog data already available via `/api/mode/space-catalog` (req 38), the platform has everything it needs to make `/` a useful **browse view** of the Cooltra Mode space, cross-referenced with which briefs already use each query. The sidebar (briefs + Schedule link + New brief) is untouched; only the right-hand main content area changes.
+
+45. The web app `/` page MUST become a **Mode catalog browse view**. Sidebar layout is unchanged; the change is confined to the right-hand main content area.
+46. The catalog MUST list every report from the configured Mode space (via the existing `/api/mode/space-catalog` endpoint), one entry per report. Each report is rendered as an **accordion** showing report name + report token (font-mono, muted). All accordions are **collapsed by default** when the user lands on the page. There is no "expand all" affordance in this iteration.
+47. Inside each open accordion, every query MUST render with: query name + query token (font-mono, muted) + a **«usat per N briefs» badge**. The badge value reflects how many briefs in the repo currently reference this query token in any of their sources.
+48. Clicking the «usat per N briefs» badge MUST **inline-expand** below the query a list of the N briefs, each rendered as a link to `/briefs/<filename>`. Clicking again collapses. No popover, no navigation away from the catalog.
+49. When a query has **zero** matching briefs, the badge MUST still render as «0 briefs» (visually muted), and a **discreet** «Create brief →» inline CTA MUST appear next to it. Clicking the CTA navigates to `/briefs/new` with the report token pre-filled in the first source's `mode_report_token` field (via query string, e.g. `?prefill_report=<token>`). The CTA is a Product-Led-Growth nudge: subtle by default, present so curious users can take action without leaving the catalog.
+50. A free-text search MUST filter the catalog at all times:
+    - Empty search → every report visible (all closed by default unless the user opens them).
+    - Non-empty search → match against query names AND query tokens AND report names. Reports with a matching query auto-expand to surface the hit; reports with no match are hidden.
+51. The cross-reference (which briefs use which query) MUST be computed server-side on each request from the brief YAMLs — a single pass over `briefs/*.yml` indexed by query token. The result is cached together with the catalog under the same 5-minute TTL as `/api/mode/space-catalog` so subsequent renders don't repeat the YAML walk.
+52. Behaviour when the catalog can't be loaded (Mode API down): the page MUST surface a fallback message «Mode no disponible — torna a provar més tard» with a Refresh button that busts the cache. The sidebar continues to function regardless. Existing brief detail pages also continue to work — the catalog landing is an additional surface, not a precondition for the rest of the platform.
+
+(Implementation tracked as **task 11.0** — currently deferred until tasks 10.0 / Mode catalog combobox / smoke tests stabilise.)
+
 ## 5. Non-Goals (Out of Scope)
 
 - **Authentication and per-user briefs**. The platform is openly accessible; everyone sees and edits everything. The data model includes a nullable `owner_email` field reserved for a future auth phase but it is never populated in this version.
@@ -278,6 +295,15 @@ The platform produces brief content that lives **only in Slack** — scattered a
 - **API endpoint**: `GET /api/briefs/[name]/outputs` mirrors the patterns of `/api/runs/[brief]` (5-min in-memory cache, `?force=true` busts, 404 on missing brief, 502 on upstream failure).
 - **Retention**: 90 days via GitHub Actions artifacts. Read-time cap of 3 entries per brief in the API response. The combination intentionally gives "exactly 3 runs" for monthly briefs and "the 3 most recent" for higher-frequency briefs.
 - **Order of operations** is an explicit choice: writing `.brief.md` BEFORE the Slack post means a Slack-delivery failure still leaves the captured text behind. Flipping this to AFTER would couple capture to a successful end-to-end run; today's design favours the diagnostic value.
+
+### Mode catalog landing (future capability)
+- **Replaces the empty landing**: `/` becomes a server component that fetches catalog data + the brief cross-reference in one round trip. The current welcome card is removed; the sidebar layout is untouched.
+- **Cross-reference indexing**: a new server helper (e.g. `web/lib/catalogIndex.ts`) builds `Map<queryToken, BriefListItem[]>` by reading every brief YAML once via the existing `listBriefs` + `parseBrief` pipeline. Trivially fast at Cooltra scale (≤ 30 reports, ≤ 200 queries, ≤ 30 briefs).
+- **API extension vs new endpoint**: the existing `/api/mode/space-catalog` either grows to include the cross-reference (`reports[].queries[].used_by: BriefListItem[]`) or a separate `/api/catalog-with-usage` endpoint is created. Recommended: extend the existing one to avoid a second round trip and share the same 5-minute cache window.
+- **CTA «Create brief →»**: implemented as a `?prefill_report=<token>` query string read by `app/briefs/new/page.tsx` and passed to `<BriefForm>` so the first source's `mode_report_token` is pre-populated. Other fields stay at the defaults. This is the only navigation away from the catalog landing in the default flow.
+- **Search behaviour**: text input filters reports + queries by name and token. Matching reports auto-expand to surface the hit; non-matching reports are hidden. Empty search restores the default (all collapsed, all visible).
+- **Performance budget**: catalog + cross-reference resolves under 2s P95 cold, <50ms warm-cached. The 5-min cache absorbs subsequent loads.
+- **Empty catalog / Mode down**: fallback copy + Refresh button busting the cache, mirroring the BriefForm combobox fallback so the user has a consistent recovery pattern.
 
 ## 8. Success Metrics
 
