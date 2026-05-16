@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { BriefForm } from "@/components/BriefForm";
 import { EarlyDataWarning } from "@/components/EarlyDataWarning";
 import { ExecutionMetadata } from "@/components/ExecutionMetadata";
+import { HistoryDrawerButton } from "@/components/HistoryDrawerButton";
 import { RunNowButton } from "@/components/RunNowButton";
 import { BriefNotFoundError, readBrief } from "@/lib/github";
 import { parseBrief } from "@/lib/yaml";
@@ -32,7 +33,12 @@ export default async function BriefDetailPage({ params }: Params) {
             {brief.name}
           </h1>
         </div>
-        <div className="shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
+          <HistoryDrawerButton
+            filename={name}
+            briefName={brief.name}
+            slackChannel={brief.slack_channel}
+          />
           <RunNowButton mode="existing" filename={name} />
         </div>
       </div>

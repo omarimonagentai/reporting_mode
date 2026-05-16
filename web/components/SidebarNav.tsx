@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarClock, Database, Plus } from "lucide-react";
+import { CalendarClock, Database, History, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ export function SidebarNav() {
   const pathname = usePathname();
   const catalogActive = pathname === "/";
   const scheduleActive = pathname === "/schedule";
+  const historyActive = pathname === "/history";
   return (
     <div className="flex flex-col gap-2">
       <Button asChild size="sm" className="w-full justify-start">
@@ -41,6 +42,18 @@ export function SidebarNav() {
       >
         <CalendarClock className="size-4" />
         Schedule
+      </Link>
+      <Link
+        href="/history"
+        className={cn(
+          "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-700 transition-colors",
+          historyActive
+            ? "bg-zinc-100 font-medium text-zinc-900"
+            : "hover:bg-zinc-100"
+        )}
+      >
+        <History className="size-4" />
+        History
       </Link>
     </div>
   );
