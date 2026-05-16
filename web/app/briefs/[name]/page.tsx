@@ -26,8 +26,19 @@ export default async function BriefDetailPage({ params }: Params) {
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-10">
-      <h1 className="text-2xl font-semibold text-zinc-900">{brief.name}</h1>
-      <p className="mt-1 text-sm text-zinc-500 font-mono">{name}.yml</p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-zinc-900 truncate">
+            {brief.name}
+          </h1>
+          <p className="mt-1 text-sm text-zinc-500 font-mono truncate">
+            {name}.yml
+          </p>
+        </div>
+        <div className="shrink-0">
+          <RunNowButton mode="existing" filename={name} />
+        </div>
+      </div>
 
       <div className="mt-6">
         <EarlyDataWarning />
@@ -37,11 +48,7 @@ export default async function BriefDetailPage({ params }: Params) {
         <ExecutionMetadata filename={name} />
       </div>
 
-      <div className="mt-6 flex justify-end">
-        <RunNowButton mode="existing" filename={name} />
-      </div>
-
-      <div className="mt-4">
+      <div className="mt-8">
         <BriefForm
           filename={name}
           initialBrief={brief}
