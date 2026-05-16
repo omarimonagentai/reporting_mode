@@ -14,3 +14,6 @@ Context:
 
 Comencem la TASCA <N>.0 (<títol>). Llegeix el task list i pregunta'm
 si veus alguna ambigüitat abans de tirar codi.
+
+# prompt per forçar nom branca
+Treballa a la branca <nom_branca> per exemple "feature/2.0-brief-crud" (segons els noms que tinguem a tasks/<my-tasks>.md)
