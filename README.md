@@ -43,6 +43,21 @@ tasks/                        PRD + task list driving the current iteration
   - `GROQ_API_KEY` — Groq LLM API key.
   - `SLACK_BOT_TOKEN` — bot must be a member of every channel a brief publishes to.
 
+## Customization
+
+Tunable knobs that live in code (not env vars) so they version-control
+with the rest of the app.
+
+- **Output-token visual signal** — the output-token count rendered next
+  to a brief's last-run meta (sidebar + ExecutionMetadata card) is
+  colour-coded above two thresholds, so expensive briefs are visible
+  at a glance. Defaults: `> 250` → orange, `> 1000` → red. Re-calibrate
+  by editing the four constants at the top of `web/lib/tokenWarnings.ts`
+  (`OUTPUT_TOKEN_WARN_THRESHOLD`, `OUTPUT_TOKEN_DANGER_THRESHOLD`,
+  `OUTPUT_TOKEN_WARN_CLASS`, `OUTPUT_TOKEN_DANGER_CLASS`). Both consumer
+  sites import the same helper, so changing the file re-calibrates
+  the whole app.
+
 ## Running a brief manually
 
 From the GitHub UI:
