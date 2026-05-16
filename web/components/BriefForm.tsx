@@ -22,11 +22,28 @@ import { briefSchema, type Brief } from "@/lib/schemas";
 
 type FormMode = "view" | "edit";
 
-type Props = {
+type EditProps = {
+  intent?: "edit";
   filename: string;
   initialBrief: Brief;
   initialSha: string;
   loadedAt: string;
+};
+
+type CreateProps = {
+  intent: "create";
+};
+
+type Props = EditProps | CreateProps;
+
+const EMPTY_BRIEF: Brief = {
+  name: "",
+  schedule: "0 8 * * *",
+  timezone: "Europe/Madrid",
+  slack_channel: "",
+  sources: [{ mode_report_token: "", queries: [{ token: "", csv: false }] }],
+  prompt: "",
+  owner_email: null,
 };
 
 const formSchema = briefSchema;
@@ -246,15 +263,12 @@ function SourceCard({
   );
 }
 
-export function BriefForm({
-  filename,
-  initialBrief,
-  initialSha,
-  loadedAt,
-}: Props) {
+export function BriefForm(props: Props) {
   const router = useRouter();
-  const [mode, setMode] = useState<FormMode>("view");
-  const [sha, setSha] = useState(initialSha);
+  const isCreate = props.intent === "create";
+  const initialBrief = isCreate ? EMPTY_BRIEF : props.initialBrief;
+  const [mode, setMode] = useState<FormMode>(isCreate ? "edit" : "view");
+  const [sha, setSha] = useState(isCreate ? "" : props.initialSha);
   const [brief, setBrief] = useState(initialBrief);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -281,6 +295,10 @@ export function BriefForm({
   }
 
   function cancelEdit() {
+    if (isCreate) {
+      router.push("/");
+      return;
+    }
     reset(brief);
     setMode("view");
   }
@@ -288,7 +306,26 @@ export function BriefForm({
   async function onSubmit(values: FormValues) {
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/briefs/${filename}`, {
+      if (isCreate) {
+        const res = await fetch("/api/briefs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brief: values }),
+        });
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(data.error ?? `HTTP ${res.status}`);
+        }
+        const data = (await res.json()) as { filename: string };
+        toast.success("Brief creat");
+        router.push(`/briefs/${data.filename}`);
+        router.refresh();
+        return;
+      }
+
+      const res = await fetch(`/api/briefs/${props.filename}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brief: values, sha }),
@@ -306,7 +343,11 @@ export function BriefForm({
       router.refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
-      toast.error(`No s'ha pogut desar: ${message}`);
+      toast.error(
+        isCreate
+          ? `No s'ha pogut crear: ${message}`
+          : `No s'ha pogut desar: ${message}`
+      );
     } finally {
       setIsSaving(false);
     }
@@ -316,7 +357,9 @@ export function BriefForm({
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="text-xs text-zinc-400">
-          Carregat a {formatLoadedAt(loadedAt)}
+          {isCreate
+            ? "Nou brief"
+            : `Carregat a ${formatLoadedAt(props.loadedAt)}`}
         </div>
         {mode === "view" ? (
           <Button type="button" size="sm" variant="outline" onClick={enterEdit}>
@@ -334,7 +377,13 @@ export function BriefForm({
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={isSaving}>
-              {isSaving ? "Desant…" : "Save"}
+              {isSaving
+                ? isCreate
+                  ? "Creant…"
+                  : "Desant…"
+                : isCreate
+                ? "Create"
+                : "Save"}
             </Button>
           </div>
         )}
