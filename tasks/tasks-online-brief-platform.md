@@ -11,9 +11,10 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
 ## Relevant Files
 
 ### Created (web app)
-- `web/package.json` — Next.js, React, shadcn/ui, zod, react-hook-form, croniter (or similar JS equivalent), js-yaml dependencies.
-- `web/tsconfig.json`, `web/next.config.js`, `web/tailwind.config.js`, `web/postcss.config.js`, `web/components.json` — standard config files.
-- `web/app/layout.tsx` — root layout with persistent sidebar and footer.
+- `web/package.json` — Next.js 16, React 19, Tailwind v4, shadcn/ui (added in 2.0), zod, react-hook-form, croniter (or similar JS equivalent), js-yaml dependencies.
+- `web/tsconfig.json`, `web/next.config.ts`, `web/postcss.config.mjs`, `web/components.json` (added in 2.0) — standard config files. **No `tailwind.config.js`**: Tailwind v4 moves theme config inside `globals.css` under `@theme`.
+- `web/app/globals.css` — Tailwind v4 entry; defines the zinc palette and Inter / JetBrains Mono font-family tokens under `@theme`.
+- `web/app/layout.tsx` — root layout with persistent sidebar (placeholder + Footer pinned bottom) and main content area.
 - `web/app/page.tsx` — home page, redirects to first brief or shows empty state.
 - `web/app/briefs/[name]/page.tsx` — brief detail / edit view.
 - `web/app/briefs/new/page.tsx` — new brief form.
@@ -28,9 +29,10 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
 - `web/components/CronBuilder.tsx` — visual schedule builder.
 - `web/components/ChannelCombobox.tsx` — Slack channel selector with bot-not-in-channel warning.
 - `web/components/ExecutionMetadata.tsx` — last-run card on brief detail.
-- `web/components/Footer.tsx` — version footer with commit info in Madrid time.
-- `web/components/ui/*` — shadcn primitives, scaffolded by `npx shadcn-ui add`.
+- `web/components/Footer.tsx` — two-line version footer (`Built <sha7>` / `DD/MM/YYYY HH:MM Catalunya`) pinned to the bottom of the sidebar.
+- `web/components/ui/*` — shadcn primitives, scaffolded by `npx shadcn@latest add` (added during 2.0).
 - `web/lib/github.ts` — typed wrapper around GitHub REST API (Contents, Actions Artifacts, Repository).
+- `web/lib/version.ts` — helper that fetches the latest commit on `main` (used by both `/api/version` and `Footer.tsx` to avoid an HTTP self-call).
 - `web/lib/slack.ts` — typed wrapper around Slack `conversations.list`.
 - `web/lib/yaml.ts` — parse/serialize brief YAML preserving comments where possible.
 - `web/lib/cron.ts` — cron ↔ builder state conversion; humanizer for preview.
@@ -63,18 +65,28 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
 - [x] **0.0 Create feature branch**
   - [x] 0.1 Working on `claude/claude-continue-command-oBXAf` (the session's pre-assigned branch) instead of `feature/online-brief-platform`. All work below lands as commits on this branch.
 
-- [ ] **1.0 Project foundation: Next.js + Vercel + layout shell**
+- [x] **1.0 Project foundation: Next.js + Vercel + layout shell** ✅
   - [x] 1.1 Initialised under `web/` via `npx create-next-app@latest . --typescript --tailwind --app --no-src-dir --yes`. **Note:** scaffolded **Next.js 16.2.6 + React 19.2 + Tailwind v4** (not Next 14 as the PRD assumed). v16 brings async `params`/`searchParams` and renames `middleware` → `proxy` — relevant later, not for 1.0.
   - [x] 1.2 Tailwind v4 deprecates `tailwind.config.js`; theme tokens go inside `web/app/globals.css` under `@theme`. Done there: zinc-based palette + Inter / JetBrains Mono fonts wired via `next/font/google` in `app/layout.tsx`.
   - [ ] 1.3 **Deferred to start of 2.0.** Reason: `shadcn init` rewrites `globals.css` with its own `oklch` theme, which would clobber the zinc/Inter setup. We don't consume any shadcn component until 2.0 (the `+ New brief` button is the first), so initialising then is cleaner.
   - [ ] 1.4 **Deferred to start of 2.0** (same reason as 1.3).
-  - [ ] 1.5 **User action**: create Vercel project; connect it to the GitHub repo; configure Production branch = `main`; preview deploys auto-enabled.
-  - [ ] 1.6 **User action**: add env vars in Vercel (Production + Preview): `GITHUB_TOKEN`, `GITHUB_REPO_OWNER`, `GITHUB_REPO_NAME`, `SLACK_BOT_TOKEN`.
-  - [x] 1.7 `web/app/layout.tsx`: persistent left sidebar (~280px width), main content area, footer slot bottom-right. Sidebar contains a placeholder until task 2.6.
+  - [x] 1.5 Vercel project `reporting-mode` created under "Oriol's projects"; connected to GitHub repo; Root Directory = `web`; Framework Preset = Next.js; Production branch = `main`; previews enabled for every branch.
+  - [x] 1.6 Env vars added in Vercel (Production + Preview, encrypted): `GITHUB_TOKEN` (fine-grained PAT `vercel-reporting-mode`, expires 2027-05-16, scoped to `reporting_mode` with `Contents: Read & write` + `Metadata: Read-only`), `GITHUB_REPO_OWNER`, `GITHUB_REPO_NAME`, `SLACK_BOT_TOKEN` (placeholder until 3.0).
+  - [x] 1.7 `web/app/layout.tsx`: persistent left sidebar (~280px width) and main content area. Sidebar is a flex column with placeholder content on top and the Footer pinned to the bottom (deviated from the original "footer bottom-right of main" spec — see 1.10).
   - [x] 1.8 `web/components/Footer.tsx` written as a Server Component (no placeholder phase — wired straight to real data via 1.9/1.10).
-  - [x] 1.9 `web/app/api/version/route.ts` returns `{sha, message, authoredAt}` from GitHub Repository API. Shared helper `web/lib/version.ts` so the Footer doesn't HTTP-self-call.
-  - [x] 1.10 Footer renders `Built from <sha7> · <message truncated to 50 chars> · <DD/MM/YYYY HH:MM Madrid>` using `Intl.DateTimeFormat('ca-ES', { timeZone: 'Europe/Madrid' })`. Uses ISR with `revalidate: 60` so the footer updates roughly once a minute.
-  - [ ] 1.11 **User action**: verify on the Vercel preview URL once 1.5/1.6 are done.
+  - [x] 1.9 `web/app/api/version/route.ts` returns `{sha, authoredAt}` from GitHub Repository API. Shared helper `web/lib/version.ts` so the Footer doesn't HTTP-self-call.
+  - [x] 1.10 **Format deviated from the PRD after design review.** Final footer renders on two lines inside the sidebar bottom, in `font-mono text-[11px] text-zinc-400`:
+    ```
+    Built <sha7>
+    DD/MM/YYYY HH:MM Catalunya
+    ```
+    Changes vs the PRD's `Built from <sha7> · <message truncated to 50 chars> · <DD/MM/YYYY HH:MM Madrid>`:
+    - Dropped "from" before the SHA (just `Built <sha7>`).
+    - Dropped the commit message entirely (merge subjects were noisy).
+    - Two lines (build / time) inside the sidebar instead of one line bottom-right of main, to keep the main area uncluttered.
+    - Display label says `Catalunya` (timezone DB key stays `Europe/Madrid`).
+    Uses ISR with `revalidate: 60` so the footer updates roughly once a minute.
+  - [x] 1.11 Verified on production URL `https://reporting-mode.vercel.app/`: shell + sidebar placeholder + footer with real SHA and Catalunya time all render.
 
 - [ ] **2.0 Brief CRUD: read, edit, create, delete**
   - [ ] 2.1 Implement `web/lib/github.ts` with helpers: `listBriefs()`, `readBrief(name)`, `writeBrief(name, content, sha?)`, `deleteBrief(name, sha)`. All use the GitHub Contents API and run server-side only.
