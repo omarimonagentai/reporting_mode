@@ -1,0 +1,11 @@
+name: Combo test
+schedule: 45 * * * *
+slack_channel: testing-canal-nou-eliminar
+reference_link: https://status.claude.com/
+sources:
+  - mode_report_token: 7b89f8a2f8d8
+    queries:
+      - token: 4c71991707f0
+        csv: false
+prompt: mostra el nom del report de mode i el de la query separts per una coma.
+owner_email: null
