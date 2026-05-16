@@ -1,4 +1,4 @@
-name: Test 5.15 smoke
+name: Test 5.15 smokes
 schedule: 45 * * * *
 slack_channel: test-github-oriol
 reference_link: https://omarimonagentai.github.io/meteo_company/meteo_dashboard.html
