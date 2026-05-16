@@ -63,10 +63,23 @@ function BriefRow({
     const check = () => {
       setIsTruncated(el.scrollWidth > el.clientWidth);
     };
-    check();
+    // 1) Initial measurement after the browser has laid out.
+    const raf = requestAnimationFrame(check);
+    // 2) Re-measure once Inter (next/font) has finished swapping in —
+    //    the box size doesn't change so ResizeObserver wouldn't fire,
+    //    but the rendered text width does.
+    if (typeof document !== "undefined" && document.fonts) {
+      void document.fonts.ready.then(() => {
+        if (nameRef.current) check();
+      });
+    }
+    // 3) Subsequent box-size changes (sidebar / viewport resize).
     const ro = new ResizeObserver(check);
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
   }, [brief.name]);
 
   const row = (
