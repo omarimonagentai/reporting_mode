@@ -1,5 +1,5 @@
 name: Testing mode CH30
-schedule: 30 * * * *
+schedule: 30 0 6 * *
 slack_channel: test-github-oriol
 sources:
   - mode_report_token: 7b89f8a2f8d8
