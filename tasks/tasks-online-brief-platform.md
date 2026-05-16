@@ -300,3 +300,23 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     6. Type a partial report name → only that report visible, others hidden.
     7. Clear the search → everything returns to defaults (all collapsed, all visible).
     8. (Optional, if reproducible) Force a Mode API failure → fallback message + Refresh button visible. Sidebar still functional.
+- [x] **9.0 Schedule page: sortable columns + "Última run" timestamp** ✅ (new requirement, added 2026-05-16 from 8.x smoke-test feedback; landed same day)
+
+  The `/schedule` page started its life as a fixed-order list (proper enviament ASC). Users now want to ask different questions of the same data: «quins han fallat recentment?», «quins tenen un nom estrany?», «què s'envia primer?». This task makes every meaningful column sortable, surfaces the timestamp of the last run alongside the status, and removes the now-misleading subtitle that claimed a single ordering.
+
+  - [x] 9.1 User decisions resolved 2026-05-16:
+    - **Sort key for "Última run"** = the moment of the last run (DESC default → most recent first). `Mai executat` rows always at the end regardless of direction.
+    - **Last-run cell format** = two-line, mirroring "Proper enviament": status + icon on top, then «fa Xh · HH:MM ds DD/MM» Catalunya time below.
+    - **Persistence** = none. Each visit starts at the default (proper enviament ASC).
+  - [x] 9.2 New helper `relativeFromPast(date, now?)` in `lib/cron.ts` (past-tense mirror of `relativeFromNow`). Returns «ara mateix», «fa Xm», «fa Xh», «fa Xd» depending on magnitude.
+  - [x] 9.3 New client component `app/schedule/ScheduleTable.tsx`. The server `page.tsx` still owns the data fetch (one `getBriefListWithRuns()` call, same lib the sidebar uses) and passes the rows down to the client table for rendering + sort.
+  - [x] 9.4 Three sortable columns via `<SortableHeader>` buttons in the table head:
+    - **Brief** — alphabetical, locale `ca`. Default direction ASC.
+    - **Proper enviament** — by next-fire timestamp. Default ASC.
+    - **Última run** — by last-run timestamp. Default DESC.
+    - Schedule (the humanised cron) is not sortable.
+    Active column shows a chevron (`ChevronUp` / `ChevronDown` from lucide) inline with the label. Inactive columns reserve the same chevron slot at `opacity-0` so widths don't shift when sort changes.
+  - [x] 9.5 Sort algorithm partitions rows into "has sort value" + "doesn't" and always sinks the latter to the bottom regardless of direction. Tiebreak inside each partition is alphabetical by name. This keeps `Mai executat` (no last-run timestamp) and briefs with invalid crons (no next-fire) at the bottom, where the user expects them.
+  - [x] 9.6 Last-run cell expanded to two-line shape: top line is `✓ Èxit` / `✗ Error` (or `Mai executat`); bottom line is «fa Xh · HH:MM ds DD/MM» in `text-[11px] font-mono text-zinc-500`. Never-run rows show only the top line.
+  - [x] 9.7 Subtitle «Briefs ordenats pel proper enviament (en horari de Catalunya).» removed — no longer accurate once the user can resort. TZ context stays implicit via the timestamps' format helper.
+

@@ -42,11 +42,16 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: python scripts/executor.py "${{ inputs.brief }}"
 
-      - name: Upload run record
+      - name: Upload run record + brief output
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: run-${{ steps.slug.outputs.value }}-${{ github.run_id }}
-          path: out/*.run.json
+          # Includes the per-execution status (<slug>.run.json) AND the raw
+          # GROQ markdown (<slug>.brief.md, may be absent on failed runs).
+          # The web app's /api/briefs/[name]/outputs reads the markdown.
+          path: |
+            out/*.run.json
+            out/*.brief.md
           retention-days: 90
           if-no-files-found: warn
