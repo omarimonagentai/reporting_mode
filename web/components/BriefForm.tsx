@@ -15,6 +15,14 @@ import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -287,6 +295,9 @@ export function BriefForm(props: Props) {
 
   const sources = useFieldArray({ control, name: "sources" });
 
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
   const isEditing = mode === "edit";
 
   function enterEdit() {
@@ -301,6 +312,31 @@ export function BriefForm(props: Props) {
     }
     reset(brief);
     setMode("view");
+  }
+
+  async function onDelete() {
+    if (isCreate) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/briefs/${props.filename}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sha }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? `HTTP ${res.status}`);
+      }
+      toast.success("Brief esborrat");
+      setDeleteOpen(false);
+      router.push("/");
+      router.refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      toast.error(`No s'ha pogut esborrar: ${message}`);
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   async function onSubmit(values: FormValues) {
@@ -502,6 +538,53 @@ export function BriefForm(props: Props) {
         <FieldHelp text={FIELD_HELP.prompt} />
         <FieldError message={errors.prompt?.message} />
       </div>
+
+      {!isCreate && mode === "view" && (
+        <div className="flex justify-end border-t border-zinc-200 pt-6">
+          <Button
+            type="button"
+            size="sm"
+            variant="destructive"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 />
+            Delete brief
+          </Button>
+        </div>
+      )}
+
+      {!isCreate && (
+        <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Esborrar brief?</DialogTitle>
+              <DialogDescription>
+                Vols esborrar <span className="font-mono">{props.filename}.yml</span>?
+                Aquesta acció és recuperable des de l&apos;historial de git, però la
+                propera execució programada no es disparrà.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteOpen(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={onDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Esborrant…" : "Esborrar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </form>
   );
 }

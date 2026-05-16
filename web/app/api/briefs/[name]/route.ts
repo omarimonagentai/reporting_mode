@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { BriefNotFoundError, readBrief, writeBrief } from "@/lib/github";
+import {
+  BriefNotFoundError,
+  deleteBrief,
+  readBrief,
+  writeBrief,
+} from "@/lib/github";
 import { briefSchema } from "@/lib/schemas";
 import { parseBrief, serializeBrief } from "@/lib/yaml";
 
@@ -54,6 +59,34 @@ export async function PUT(
     const content = serializeBrief(parsed.data);
     const result = await writeBrief(name, content, payload.sha);
     return NextResponse.json({ sha: result.sha });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: Params
+): Promise<NextResponse> {
+  const { name } = await params;
+  let payload;
+  try {
+    payload = (await request.json()) as { sha?: unknown };
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  if (typeof payload.sha !== "string" || !payload.sha) {
+    return NextResponse.json(
+      { error: "Missing sha (last known commit sha for this file)" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    await deleteBrief(name, payload.sha);
+    return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 502 });
