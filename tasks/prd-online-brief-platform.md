@@ -177,9 +177,35 @@ Task 10.0 captured every successful GROQ output behind `<slug>.brief.md` and exp
 
 (Implementation tracked as **task 12.0** — currently deferred until prioritised. UI sketch confirmed with user via Q1.A «History» label, Q2.C drawer for per-brief, Q3.C bottom placeholder for never-captured briefs.)
 
+### Authentication & Access Control (future capability)
+
+The platform is today openly accessible — anyone with the URL can read, edit and dispatch every brief. This subsection introduces a thin **access wall**: every visitor must authenticate before seeing any surface, but once inside, every authenticated user sees and edits every brief. Ownership is captured as a label (`owner_email` populated server-side from the session) but does NOT gate any action in this iteration — the field exists to enable a future per-user view without a schema break. Motivation: retire Non-Goal §5 #1, comply with internal data-handling expectations, and avoid leaking Mode / Slack-channel listings to anyone who guesses the Vercel URL.
+
+A1. The web app MUST require authentication before ANY page (`/`, `/briefs/*`, `/schedule`, `/history`) and ANY API endpoint (`/api/*` excluding the auth callbacks themselves) renders or responds. Unauthenticated browser requests MUST be redirected to `/sign-in` preserving the originally requested URL; unauthenticated API requests MUST return HTTP 401.
+
+A2. Authentication MUST be via **email magic link**. The sign-in page exposes a single field («Email») and a Submit button. On submit the platform emails the address a one-click sign-in URL valid for **10 minutes, single use**. Clicking the link establishes the session and redirects to the originally requested URL (or `/` if none).
+
+A3. Sign-in MUST be **restricted by email domain**. Only addresses ending in `@cooltra.com` or `@felyx.com` are accepted. The check runs server-side TWICE: when the magic-link is requested (so the user gets immediate feedback «Aquest email no està autoritzat — utilitza un compte @cooltra.com o @felyx.com») AND when the magic-link is clicked (defence in depth against a link forwarded to a non-allowed inbox). The allowed-domain list MUST live in an env var `AUTH_ALLOWED_DOMAINS` (CSV) so adding / removing a tenant is one Vercel env-var edit, no code change.
+
+A4. Sessions MUST be **JWT-only** (no DB), persisted as an `HttpOnly Secure SameSite=Lax` cookie. **Lifetime: 30 days, sliding** (each authenticated request refreshes expiry).
+
+A5. The sidebar footer MUST surface the logged-in email (truncated if long) and a small **«Sign out»** button immediately above the build-info footer. Sign out clears the cookie and redirects to `/sign-in`.
+
+A6. Authentication MUST stay transparent to the Python executor and the GitHub Actions workflows — these run server-side / scheduled and do not interact with user sessions. The executor's existing `GITHUB_TOKEN` / `SLACK_BOT_TOKEN` continue as the operational credentials for the scheduled pipeline.
+
+A7. **Migration of existing briefs**: a one-time commit during rollout MUST bulk-assign `owner_email: oriol@cooltra.com` to every existing brief's YAML. **New briefs** created post-rollout MUST have their `owner_email` set server-side to the logged-in user's email at the moment of `POST /api/briefs` — the form UI does NOT expose an Owner field. **Edits** MUST preserve the existing `owner_email` value (the owner does not change just because someone else edited the YAML).
+
+A8. **Audit trail via git history only**: every mutation endpoint (`POST/PUT/DELETE /api/briefs/*`) MUST include the logged-in user's email in the commit message authored by the service identity. Format: `Update brief: <slug> (by <user-email>)` (and analogous «Create brief: …», «Delete brief: …»). The YAML payload MUST NOT grow a `last_edited_by` or similar field — `git log` is the audit source of truth. Run Now (`POST /api/briefs/[name]/run`) does not mutate YAML; the dispatcher's email is captured in the existing GitHub Actions `workflow_dispatch` event metadata (searchable via the Actions API) so no `.run.json` change is needed.
+
+A9. **The access wall is total**: there is no read-only public view of any brief, schedule, history, catalog or output. Unauthenticated visitors only see the sign-in page and the build-info footer.
+
+A10. **Ownership has no UI gating in this iteration**: edit, delete, Run Now, new-brief, `/history`, `/schedule` and the Mode catalog are all reachable by every authenticated user without role checks. Future iterations may introduce «My briefs» filters or visibility scoping, which is why `owner_email` is captured even though it's decorative today.
+
+(Implementation tracked as **task 13.0** — currently deferred until prioritised. Auth model resolved with user 2026-05-16: magic-link (Resend free tier), domain-restricted to `@cooltra.com` / `@felyx.com`, JWT-only sessions 30-day sliding, access-wall semantics, bulk migration to `oriol@cooltra.com`, audit via commit messages only.)
+
 ## 5. Non-Goals (Out of Scope)
 
-- **Authentication and per-user briefs**. The platform is openly accessible; everyone sees and edits everything. The data model includes a nullable `owner_email` field reserved for a future auth phase but it is never populated in this version.
+- ~~**Authentication and per-user briefs**. The platform is openly accessible; everyone sees and edits everything. The data model includes a nullable `owner_email` field reserved for a future auth phase but it is never populated in this version.~~ **SUPERSEDED 2026-05-16 by §4 «Authentication & Access Control»**: authentication is now required (magic-link, domain-restricted to `@cooltra.com` / `@felyx.com`), and `owner_email` is now populated on every brief. **Per-user data isolation remains out of scope**: every authenticated user still sees and edits every brief; `owner_email` is captured but does not gate any action.
 - **Migration from YAML files to a database**. Briefs remain YAML in the repository for this version.
 - **Per-query Slack channel override**. Within a single brief, all queries publish to the same channel (the brief's `slack_channel`). If you need different destinations for different queries, create separate briefs.
 - **Channel metadata in the dropdown** (description, member count, last brief posted there, last activity). The dropdown shows only channel name and a public/private icon; richer metadata is a future iteration.
@@ -340,6 +366,19 @@ Task 10.0 captured every successful GROQ output behind `<slug>.brief.md` and exp
 - **Why grouping-by-brief instead of a global chronological feed**: explicit user decision — "els històrics de cada brief tenen context dins del brief, no tenen context barrejats amb els altres briefs". A strict chronological feed would scatter the same brief's older versions among other briefs' newer outputs, breaking the side-by-side comparison value that motivates the feature in the first place.
 - **Briefs that no longer exist**: filtered out at the page level via `listBriefs()` as the authoritative set. Orphan `.brief.md` artifacts (deleted or renamed briefs) are not surfaced even within their 90-day retention window. Trade-off: a renamed brief's older artifacts are lost from the UI, which is consistent with the slug-stability decision (filename = slug, brief.name is editable).
 - **Empty / loading / error states**: skeleton (~5 placeholder rows) during the Suspense fetch; empty state at the bottom (briefs without outputs); error state when the bulk endpoint 502s, with a Refresh button busting the cache.
+
+### Authentication & Access Control
+
+- **Library: Auth.js v5** (formerly NextAuth.js v5), the de-facto pick for Next.js 16 App Router. Configured with the **Email** provider (magic-link flow) + **JWT session strategy** so no database adapter is required. Free.
+- **Mail delivery: Resend** (free tier: 3 000 emails/month, 1 verified sender domain). Cooltra scale (≤30 internal users, 1–2 logins each per month given the 30-day sliding session) stays well under quota. Sender domain (`reporting@cooltra.com` or equivalent) requires DNS verification (SPF + DKIM records) — manual rollout step, mirrors how task 6.1 added `actions:write` to the PAT.
+- **Domain gate**: a single `assertEmailAllowed(email)` server util reads `AUTH_ALLOWED_DOMAINS` (CSV `cooltra.com,felyx.com`) and is invoked twice — at the `signIn` callback (rejects the magic-link request) AND at the `jwt`/`session` callback (defence in depth: rejects a link arriving for an allowlisted email whose domain was removed in between). Centralised so removing / adding a tenant is one env-var edit.
+- **Middleware-based gating**: Next.js 16 renames `middleware` → `proxy`. Auth.js v5's pattern works inside `proxy.ts`: `export { auth as default } from "@/lib/auth"` with a matcher that protects every route EXCEPT `/sign-in`, `/api/auth/*` (NextAuth's callbacks) and Next's static assets. Server components additionally call `auth()` for belt-and-braces server-side gating; API routes call `auth()` at the top and return 401 if null.
+- **`owner_email` population**: today nullable-but-never-written. After AUTH lands, `POST /api/briefs` reads `session.user.email` and sets `owner_email` before serialising; `PUT /api/briefs/[name]` preserves the existing value (no auto-rewrite); the bulk migration commits `owner_email: oriol@cooltra.com` everywhere.
+- **Commit author identity stays as the service identity** (`cooltra-reporting-bot`). No per-user PATs, no GitHub App user-to-server tokens — those would require OAuth app review and per-user GitHub authorisation. The logged-in user appears only in the commit MESSAGE.
+- **No new DB, no new external infra**: Auth.js JWT sessions live in cookies; Resend is a SaaS the operator signs up to (Cooltra account, free tier). Env vars grow by `AUTH_SECRET` (random 32+ bytes for JWT signing), `AUTH_RESEND_KEY`, `AUTH_RESEND_FROM`, `AUTH_ALLOWED_DOMAINS`. Vercel Hobby tier covers everything.
+- **Caches stay global, not per-session**: the existing 5-min in-memory caches (`/api/channels`, `/api/runs/[brief]`, `/api/briefs/[name]/outputs`, `/api/briefs/outputs/all`, `/api/mode/space-catalog`) MUST stay keyed globally. Under access-wall semantics, every authenticated user sees the same data, so per-user partitioning would only hurt hit rate. Documented explicitly so future contributors don't reflexively partition.
+- **Brief output history access (§4 req 44) re-confirmed under AUTH**: accessible to any authenticated user, no per-brief gating. Long-term archival (>90d) and finer-grained ACLs remain future work, now framed as «a future iteration BEYOND access wall».
+- **Future-readiness for per-user data isolation**: this iteration intentionally touches no UI surface to filter «My briefs vs others». `owner_email` is captured precisely so a future task can introduce sidebar groupings, a «My briefs» filter, or hidden/private flags without a schema break.
 
 ## 8. Success Metrics
 
