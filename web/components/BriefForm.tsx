@@ -46,7 +46,6 @@ type EditProps = {
   filename: string;
   initialBrief: Brief;
   initialSha: string;
-  loadedAt: string;
 };
 
 type CreateProps = {
@@ -90,16 +89,6 @@ const FIELD_HELP = {
     'Identificador d\'una query individual dins del report de Mode. Format: l\'string que apareix quan obres la query ampliada a Mode (URL: «/reports/<report>/queries/<query>»). Exemple: «4c71991707f0». Un mateix source pot tenir diverses queries del mateix report.',
   csv: "Marca-ho si vols rebre el CSV brut d'aquesta query com a resposta dins del thread del brief a Slack. Útil quan algú vol fer un anàlisi propi més enllà del resum del LLM. Per defecte: desmarcat (només arriba el resum textual). Cada query del source pot tenir CSV independent.",
 };
-
-function formatLoadedAt(iso: string): string {
-  const fmt = new Intl.DateTimeFormat("ca-ES", {
-    timeZone: "Europe/Madrid",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return fmt.format(new Date(iso));
-}
 
 function FieldHint({ text, label }: { text: string; label: string }) {
   return (
@@ -648,15 +637,8 @@ export function BriefForm(props: Props) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      <div>
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-zinc-400">
-            {isCreate
-              ? "Nou brief"
-              : `Carregat a ${formatLoadedAt(props.loadedAt)}`}
-          </div>
-          {actionButtons}
-        </div>
+      <div className="flex flex-col items-end gap-1">
+        {actionButtons}
         {validityHint}
       </div>
 
@@ -857,6 +839,13 @@ export function BriefForm(props: Props) {
             Delete brief
           </Button>
         </div>
+      )}
+
+      {!isCreate && (
+        <p className="pt-2 text-center text-[11px] text-zinc-400">
+          Internament aquest brief ha estat desat com a{" "}
+          <span className="font-mono">{props.filename}.yml</span>
+        </p>
       )}
 
       {!isCreate && (
