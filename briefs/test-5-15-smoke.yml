@@ -7,5 +7,5 @@ sources:
     queries:
       - token: 4c71991707f0
         csv: true
-prompt: Indica quants caràcters té l'arxiu CSV. No inventis. No escriguis més de 5 paraules en total.
+prompt: Indica quants caràcters té l'arxiu CSV. No inventis. No escriguis més de 15 paraules en total.
 owner_email: null
