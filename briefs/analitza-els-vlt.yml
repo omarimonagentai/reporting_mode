@@ -1,0 +1,12 @@
+name: Analitza els VLT
+schedule: 15 * * * *
+slack_channel: test-github-oriol
+sources:
+  - mode_report_token: bd8b5c4d3c80
+    queries:
+      - token: e81413b503a4
+        csv: false
+prompt: |
+  Llista els valors en format taula.
+  Els valors de la columna <rental url> en format link amb el seu tag html corresponent i al costat indica quants minuts fa que el rental està en marxa fent un càlcul de la diferència entre created i el moment de lectura de les dades (tot sempre en horari Europe/Belgium) 
+owner_email: null
