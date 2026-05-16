@@ -25,12 +25,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { briefSchema, type Brief } from "@/lib/schemas";
 
 type FormMode = "view" | "edit";
@@ -91,8 +91,8 @@ function formatLoadedAt(iso: string): string {
 
 function FieldHint({ text, label }: { text: string; label: string }) {
   return (
-    <Popover>
-      <PopoverTrigger asChild>
+    <Tooltip>
+      <TooltipTrigger asChild>
         <button
           type="button"
           className="inline-flex size-4 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
@@ -100,11 +100,11 @@ function FieldHint({ text, label }: { text: string; label: string }) {
         >
           <Info className="size-3.5" />
         </button>
-      </PopoverTrigger>
-      <PopoverContent side="right" align="start" className="w-80 text-xs text-zinc-700">
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={6} className="max-w-xs whitespace-normal text-left leading-snug">
         {text}
-      </PopoverContent>
-    </Popover>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
