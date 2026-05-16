@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Suspense } from "react";
+import { BriefSidebar } from "@/components/BriefSidebar";
 import { Footer } from "@/components/Footer";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const inter = Inter({
@@ -34,9 +36,8 @@ export default function RootLayout({
       <body className="min-h-full">
         <div className="flex min-h-screen">
           <aside className="w-[280px] shrink-0 border-r border-zinc-200 bg-white flex flex-col">
-            {/* BriefSidebar lands here in task 2.6 */}
-            <div className="flex-1 p-4 text-sm text-zinc-400">
-              Sidebar (placeholder)
+            <div className="flex-1 overflow-y-auto">
+              <BriefSidebar />
             </div>
             <Suspense
               fallback={
@@ -49,8 +50,9 @@ export default function RootLayout({
             </Suspense>
           </aside>
 
-          <main className="flex-1">{children}</main>
+          <main className="flex-1 overflow-y-auto">{children}</main>
         </div>
+        <Toaster />
       </body>
     </html>
   );

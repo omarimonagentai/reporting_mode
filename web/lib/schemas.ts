@@ -4,7 +4,7 @@ const CRON_5_FIELD = /^\S+\s+\S+\s+\S+\s+\S+\s+\S+$/;
 
 export const querySchema = z.object({
   token: z.string().min(1, "Query token is required"),
-  csv: z.boolean().default(false),
+  csv: z.boolean(),
 });
 
 export const sourceSchema = z.object({
@@ -18,7 +18,7 @@ export const briefSchema = z.object({
     .string()
     .min(1, "Schedule is required")
     .regex(CRON_5_FIELD, "Cron expression must have 5 fields"),
-  timezone: z.string().min(1, "Timezone is required").default("Europe/Madrid"),
+  timezone: z.string().min(1, "Timezone is required"),
   slack_channel: z.string().min(1, "Slack channel is required"),
   sources: z.array(sourceSchema).min(1, "At least one source is required"),
   prompt: z.string().min(1, "Prompt is required"),
