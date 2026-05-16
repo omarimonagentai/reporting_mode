@@ -93,10 +93,15 @@ T4. Adding the Run Now button requires extending the platform's GitHub PAT scope
 
 ### Calendar View
 
-23. The calendar view MUST display a **weekly grid** (Monday → Sunday columns, 24h rows or compressed by hour blocks) showing every scheduled brief as a colored event at its scheduled time.
-24. Clicking an event MUST open the corresponding brief's detail view.
-25. The calendar MUST handle timezones correctly: events are drawn at the time they actually fire in `Europe/Madrid` (the operational timezone of Cooltra), regardless of the brief's own declared timezone.
-26. A toggle MAY allow switching between weekly and monthly views (stretch goal).
+23. ~~The calendar view MUST display a **weekly grid** (Monday → Sunday columns, 24h rows or compressed by hour blocks) showing every scheduled brief as a colored event at its scheduled time.~~ **Revised in MVP scope (2026-05-16): the `/schedule` page is a simple table, not a weekly grid.** Each row is one brief; columns are `Brief`, `Proper enviament` (next fire time), `Schedule` (humanised cron), `Última run` (status + timestamp). The weekly-grid aspiration is dropped for now — the operational team validated that "next fire time in a sortable list" answers their questions without a calendar metaphor.
+24. Clicking the brief name MUST open the corresponding brief's detail view.
+25. The schedule view MUST interpret every cron in `Europe/Madrid` (the operational timezone of Cooltra). Timestamps are rendered in Catalunya local time via `Intl.DateTimeFormat("ca-ES", { timeZone: "Europe/Madrid" })`.
+26. **Sortable columns** (added 2026-05-16, requirement 9.0): three of the four columns are sortable by clicking the column header:
+    - `Brief` — alphabetical (locale `ca`). Default direction ASC.
+    - `Proper enviament` — by next-fire timestamp. Default direction ASC (soonest first). Default landing sort.
+    - `Última run` — by the moment of the last run. Default direction DESC (most recent first).
+    Clicking the **active** column header toggles ASC ↔ DESC; clicking a different column changes the sort criterion and resets to that column's default direction. Briefs missing a sort value (no valid cron for `Proper enviament`; `Mai executat` for `Última run`) always sink to the bottom regardless of direction. Tiebreak inside a partition is alphabetical by brief name. Sort state does not persist across visits (each load returns to default `Proper enviament` ASC).
+26a. The `Última run` cell MUST surface both the status (`✓ Èxit` / `✗ Error` / `Mai executat`) and, when applicable, the **moment of the last run** as a two-line cell — top line is the status with its colour-coded icon, bottom line is «fa Xh · HH:MM ds DD/MM» in font-mono muted, matching the visual rhythm of the `Proper enviament` column on the left.
 
 ### Persistence & Synchronization
 

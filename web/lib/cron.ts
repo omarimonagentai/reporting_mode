@@ -167,3 +167,15 @@ export function relativeFromNow(date: Date, now: Date = new Date()): string {
   const d = Math.floor(h / 24);
   return `en ${d}d`;
 }
+
+export function relativeFromPast(date: Date, now: Date = new Date()): string {
+  const ms = now.getTime() - date.getTime();
+  if (ms < 0) return "ara mateix";
+  const m = Math.floor(ms / 60_000);
+  if (m < 1) return "ara mateix";
+  if (m < 60) return `fa ${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `fa ${h}h`;
+  const d = Math.floor(h / 24);
+  return `fa ${d}d`;
+}
