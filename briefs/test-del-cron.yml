@@ -1,4 +1,4 @@
-name: Test del cron tasca 3.0
+name: Test del cron tasca 3.0 1430
 schedule: 30 14 * * *
 slack_channel: testing-canal-nou-eliminar
 sources:
