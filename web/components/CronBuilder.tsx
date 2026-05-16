@@ -64,6 +64,7 @@ export function CronBuilder({ value, onChange }: Props) {
     if (value === lastEmittedRef.current) return;
     const parsed = parseCron(value);
     if (parsed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMode("grid");
       setState(parsed);
     } else {

@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Info, Plus, Trash2 } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { ChannelCombobox } from "@/components/ChannelCombobox";
 import { CronBuilder } from "@/components/CronBuilder";
 import {
   Dialog,
@@ -669,13 +670,18 @@ export function BriefForm(props: Props) {
             Slack Channel
           </LabelRow>
           {isEditing ? (
-            <Input
-              id="slack_channel"
-              className="font-mono"
-              {...register("slack_channel")}
-              aria-invalid={
-                shouldShowError("slack_channel") && !!errors.slack_channel
-              }
+            <Controller
+              control={control}
+              name="slack_channel"
+              render={({ field }) => (
+                <ChannelCombobox
+                  value={field.value}
+                  onChange={field.onChange}
+                  ariaInvalid={
+                    shouldShowError("slack_channel") && !!errors.slack_channel
+                  }
+                />
+              )}
             />
           ) : (
             <ReadonlyValue mono>#{brief.slack_channel}</ReadonlyValue>
