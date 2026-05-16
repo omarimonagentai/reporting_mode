@@ -8,20 +8,20 @@ export const querySchema = z.object({
 });
 
 export const sourceSchema = z.object({
-  mode_report_token: z.string().min(1, "El Mode report token és obligatori"),
+  mode_report_token: z.string().min(1, "El Mode report és obligatori"),
   queries: z
     .array(querySchema)
     .min(1, "Cal almenys una Query dins de cada Source"),
 });
 
 export const briefSchema = z.object({
-  name: z.string().min(1, "El Name és obligatori"),
+  name: z.string().min(1, "El Brief Name és obligatori"),
   schedule: z
     .string()
     .min(1, "El Schedule és obligatori")
     .regex(CRON_5_FIELD, "El Schedule ha de ser una expressió cron de 5 camps"),
-  timezone: z.string().min(1, "La Timezone és obligatòria"),
-  slack_channel: z.string().min(1, "El Slack channel és obligatori"),
+  timezone: z.string().min(1, "La Time Zone és obligatòria"),
+  slack_channel: z.string().min(1, "El Slack Channel és obligatori"),
   sources: z.array(sourceSchema).min(1, "Cal almenys un Source"),
   prompt: z.string().min(1, "El Prompt és obligatori"),
   owner_email: z.string().email().nullable().optional(),

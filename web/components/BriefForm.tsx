@@ -65,17 +65,17 @@ type FormValues = z.infer<typeof formSchema>;
 const FIELD_HELP = {
   name: 'Nom llegible del brief. Apareix a la barra lateral i com a títol del missatge a Slack. Format: text lliure. Exemple: «App Version Adoption». El nom del fitxer .yml es deriva d\'aquest valor només a la creació; editar-lo després no mou el fitxer.',
   schedule:
-    'Quan s\'executa el brief. Format: cron de 5 camps (minut hora dia-mes mes dia-setmana). Exemples: «0 8 * * *» = cada dia a les 08:00; «0 10 * * 1» = cada dilluns a les 10:00.',
+    'Quan s\'executa el brief. Internament és una expressió cron de 5 camps (minut hora dia-mes mes dia-setmana). Exemples: «0 8 * * *» = cada dia a les 08:00; «0 10 * * 1» = cada dilluns a les 10:00.',
   timezone:
-    'Zona horària amb què s\'interpreta el cron. Format: identificador IANA. Exemples: «Europe/Madrid» (per defecte, gestiona els canvis d\'hora), «UTC», «America/New_York».',
+    'Zona horària amb què s\'interpreta el Schedule. Format: identificador IANA. Exemples: «Europe/Madrid» (per defecte, gestiona els canvis d\'hora), «UTC», «America/New_York».',
   slack_channel:
     'Canal de Slack on es publica el resultat. Format: només el nom, sense el «#» del davant. Exemple: «test-github-oriol». El bot ha de ser membre del canal abans del proper run; si encara no ho és, fes «/invite @cooltra-reporting-bot» dins del canal.',
   prompt:
     "Instruccions que rep el LLM per generar el brief. Les dades de cada query s'adjunten automàticament al final del prompt. Format: text lliure (pots usar markdown, llistes, seccions «## Title»). Sigues específic amb el format de sortida que esperes.",
-  mode_report_token:
-    'Token del report de Mode des d\'on s\'extrauen les dades. Format: l\'string alfanumèric que apareix a la URL del report a app.mode.com («/reports/<token>»). Exemple: «7b89f8a2f8d8».',
+  mode_report:
+    'Identificador del report de Mode des d\'on s\'extrauen les dades. Format: l\'string alfanumèric que apareix a la URL del report a app.mode.com («/reports/<id>»). Exemple: «7b89f8a2f8d8».',
   query_token:
-    'Token d\'una query individual dins del report de Mode. Format: l\'string que apareix quan obres la query ampliada a Mode. Exemple: «4c71991707f0». Un mateix source pot tenir diverses queries.',
+    'Identificador d\'una query individual dins del report de Mode. Format: l\'string que apareix quan obres la query ampliada a Mode. Exemple: «4c71991707f0». Un mateix source pot tenir diverses queries.',
   csv: "Marca-ho si vols rebre el CSV brut d'aquesta query com a resposta dins del thread del brief a Slack. Útil quan algú vol fer un anàlisi propi més enllà del resum del LLM.",
 };
 
@@ -197,17 +197,17 @@ function SourceCard({
 
       <div className="mt-2">
         <LabelRow
-          htmlFor={`mode_report_token_${sourceIdx}`}
+          htmlFor={`mode_report_${sourceIdx}`}
           hint={{
-            text: FIELD_HELP.mode_report_token,
-            label: "Mode report token",
+            text: FIELD_HELP.mode_report,
+            label: "Mode report",
           }}
         >
-          Mode report token
+          Mode report
         </LabelRow>
         {isEditing ? (
           <Input
-            id={`mode_report_token_${sourceIdx}`}
+            id={`mode_report_${sourceIdx}`}
             className="font-mono"
             {...register(`sources.${sourceIdx}.mode_report_token` as const)}
             aria-invalid={!!sourceErrors?.mode_report_token}
@@ -469,8 +469,11 @@ export function BriefForm(props: Props) {
       </div>
 
       <div>
-        <LabelRow htmlFor="name" hint={{ text: FIELD_HELP.name, label: "Name" }}>
-          Name
+        <LabelRow
+          htmlFor="name"
+          hint={{ text: FIELD_HELP.name, label: "Brief Name" }}
+        >
+          Brief Name
         </LabelRow>
         {isEditing ? (
           <Input id="name" {...register("name")} aria-invalid={!!errors.name} />
@@ -480,124 +483,136 @@ export function BriefForm(props: Props) {
         <FieldError message={errors.name?.message} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <section className="space-y-4 rounded-lg border border-zinc-200 bg-white p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          Inputs
+        </h2>
+
         <div>
-          <LabelRow
-            htmlFor="schedule"
-            hint={{ text: FIELD_HELP.schedule, label: "Schedule" }}
-          >
-            Schedule (cron)
-          </LabelRow>
-          {isEditing ? (
-            <Input
-              id="schedule"
-              className="font-mono"
-              {...register("schedule")}
-              aria-invalid={!!errors.schedule}
-            />
-          ) : (
-            <ReadonlyValue mono>{brief.schedule}</ReadonlyValue>
-          )}
-          <FieldError message={errors.schedule?.message} />
+          <Label>Sources</Label>
+          <div className="mt-2 flex flex-col gap-3">
+            {sources.fields.map((sourceField, sIdx) => (
+              <SourceCard
+                key={sourceField.id}
+                sourceIdx={sIdx}
+                control={control}
+                register={register}
+                errors={errors}
+                isEditing={isEditing}
+                onRemoveSource={() => sources.remove(sIdx)}
+                canRemoveSource={sources.fields.length > 1}
+              />
+            ))}
+            {isEditing && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="self-start"
+                onClick={() =>
+                  sources.append({
+                    mode_report_token: "",
+                    queries: [{ token: "", csv: false }],
+                  })
+                }
+              >
+                <Plus />
+                Add source
+              </Button>
+            )}
+          </div>
         </div>
 
         <div>
           <LabelRow
-            htmlFor="timezone"
-            hint={{ text: FIELD_HELP.timezone, label: "Timezone" }}
+            htmlFor="prompt"
+            hint={{ text: FIELD_HELP.prompt, label: "Prompt" }}
           >
-            Timezone
+            Prompt
           </LabelRow>
           {isEditing ? (
-            <Input
-              id="timezone"
-              {...register("timezone")}
-              aria-invalid={!!errors.timezone}
+            <Textarea
+              id="prompt"
+              rows={20}
+              className="font-mono text-sm"
+              {...register("prompt")}
+              aria-invalid={!!errors.prompt}
             />
           ) : (
-            <ReadonlyValue mono>{brief.timezone}</ReadonlyValue>
+            <pre className="mt-2 max-h-[40rem] overflow-y-auto rounded-md border border-zinc-200 bg-zinc-50 p-3 font-mono text-sm text-zinc-900 whitespace-pre-wrap">
+              {brief.prompt}
+            </pre>
           )}
-          <FieldError message={errors.timezone?.message} />
+          <FieldError message={errors.prompt?.message} />
         </div>
-      </div>
+      </section>
 
-      <div>
-        <LabelRow
-          htmlFor="slack_channel"
-          hint={{ text: FIELD_HELP.slack_channel, label: "Slack channel" }}
-        >
-          Slack channel
-        </LabelRow>
-        {isEditing ? (
-          <Input
-            id="slack_channel"
-            className="font-mono"
-            {...register("slack_channel")}
-            aria-invalid={!!errors.slack_channel}
-          />
-        ) : (
-          <ReadonlyValue mono>#{brief.slack_channel}</ReadonlyValue>
-        )}
-        <FieldError message={errors.slack_channel?.message} />
-      </div>
+      <section className="space-y-4 rounded-lg border border-zinc-200 bg-white p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          Outputs
+        </h2>
 
-      <div>
-        <Label>Sources</Label>
-        <div className="mt-2 flex flex-col gap-3">
-          {sources.fields.map((sourceField, sIdx) => (
-            <SourceCard
-              key={sourceField.id}
-              sourceIdx={sIdx}
-              control={control}
-              register={register}
-              errors={errors}
-              isEditing={isEditing}
-              onRemoveSource={() => sources.remove(sIdx)}
-              canRemoveSource={sources.fields.length > 1}
-            />
-          ))}
-          {isEditing && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="self-start"
-              onClick={() =>
-                sources.append({
-                  mode_report_token: "",
-                  queries: [{ token: "", csv: false }],
-                })
-              }
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <LabelRow
+              htmlFor="schedule"
+              hint={{ text: FIELD_HELP.schedule, label: "Schedule" }}
             >
-              <Plus />
-              Add source
-            </Button>
-          )}
-        </div>
-      </div>
+              Schedule
+            </LabelRow>
+            {isEditing ? (
+              <Input
+                id="schedule"
+                className="font-mono"
+                {...register("schedule")}
+                aria-invalid={!!errors.schedule}
+              />
+            ) : (
+              <ReadonlyValue mono>{brief.schedule}</ReadonlyValue>
+            )}
+            <FieldError message={errors.schedule?.message} />
+          </div>
 
-      <div>
-        <LabelRow
-          htmlFor="prompt"
-          hint={{ text: FIELD_HELP.prompt, label: "Prompt" }}
-        >
-          Prompt
-        </LabelRow>
-        {isEditing ? (
-          <Textarea
-            id="prompt"
-            rows={20}
-            className="font-mono text-sm"
-            {...register("prompt")}
-            aria-invalid={!!errors.prompt}
-          />
-        ) : (
-          <pre className="mt-2 max-h-[40rem] overflow-y-auto rounded-md border border-zinc-200 bg-zinc-50 p-3 font-mono text-sm text-zinc-900 whitespace-pre-wrap">
-            {brief.prompt}
-          </pre>
-        )}
-        <FieldError message={errors.prompt?.message} />
-      </div>
+          <div>
+            <LabelRow
+              htmlFor="timezone"
+              hint={{ text: FIELD_HELP.timezone, label: "Time Zone" }}
+            >
+              Time Zone
+            </LabelRow>
+            {isEditing ? (
+              <Input
+                id="timezone"
+                {...register("timezone")}
+                aria-invalid={!!errors.timezone}
+              />
+            ) : (
+              <ReadonlyValue mono>{brief.timezone}</ReadonlyValue>
+            )}
+            <FieldError message={errors.timezone?.message} />
+          </div>
+        </div>
+
+        <div>
+          <LabelRow
+            htmlFor="slack_channel"
+            hint={{ text: FIELD_HELP.slack_channel, label: "Slack Channel" }}
+          >
+            Slack Channel
+          </LabelRow>
+          {isEditing ? (
+            <Input
+              id="slack_channel"
+              className="font-mono"
+              {...register("slack_channel")}
+              aria-invalid={!!errors.slack_channel}
+            />
+          ) : (
+            <ReadonlyValue mono>#{brief.slack_channel}</ReadonlyValue>
+          )}
+          <FieldError message={errors.slack_channel?.message} />
+        </div>
+      </section>
 
       {!isCreate && mode === "view" && (
         <div className="flex justify-end border-t border-zinc-200 pt-6">
