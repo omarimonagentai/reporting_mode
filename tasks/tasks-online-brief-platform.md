@@ -88,29 +88,29 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     Uses ISR with `revalidate: 60` so the footer updates roughly once a minute.
   - [x] 1.11 Verified on production URL `https://reporting-mode.vercel.app/`: shell + sidebar placeholder + footer with real SHA and Catalunya time all render.
 
-- [ ] **2.0 Brief CRUD: read, edit, create, delete**
-  - [ ] 2.1 Implement `web/lib/github.ts` with helpers: `listBriefs()`, `readBrief(name)`, `writeBrief(name, content, sha?)`, `deleteBrief(name, sha)`. All use the GitHub Contents API and run server-side only.
-  - [ ] 2.2 Implement `web/lib/yaml.ts`: parse a brief YAML string to a typed object; serialise back to YAML keeping a stable key order so diffs in git remain readable.
-  - [ ] 2.3 Implement `web/lib/schemas.ts`: a zod schema mirroring the brief structure (name, schedule, timezone, slack_channel, sources[], prompt, optional owner_email).
-  - [ ] 2.4 Implement `web/app/api/briefs/route.ts` `GET`: returns `[{name, schedule, slack_channel, source_count, query_count, sha}]` for every brief in the repo.
-  - [ ] 2.5 Implement `web/app/api/briefs/[name]/route.ts` `GET`: returns the full parsed brief plus its SHA.
-  - [ ] 2.6 Implement `web/components/BriefSidebar.tsx`: client component that fetches `/api/briefs` and renders each brief as a clickable item (just the name for now; execution data added in 4.7).
-  - [ ] 2.7 Above the sidebar list, render the `+ New brief` button (shadcn Button, primary variant) linking to `/briefs/new`.
-  - [ ] 2.8 Implement `web/app/briefs/[name]/page.tsx`: server component that fetches the brief by name and passes it to `BriefForm` in read-only mode.
-  - [ ] 2.9 Implement `web/components/BriefForm.tsx`: renders all brief fields with always-visible inline help text below each field; supports `mode="view" | "edit" | "create"`.
-  - [ ] 2.10 In view mode, each field is a read-only display; in edit mode, fields become inputs/textareas. The `prompt` field is a `<Textarea>` sized to ~20 visible rows with monospace font.
-  - [ ] 2.11 Wire react-hook-form + zod to the form. Validation errors render below each field in red, replacing the inline help text temporarily.
-  - [ ] 2.12 Add an "Edit" button that toggles `mode` from view to edit; "Cancel" reverts; "Save" calls `PUT /api/briefs/[name]`.
-  - [ ] 2.13 Above the form, render a small muted "Carregat a HH:MM" indicator (the timestamp when the page loaded). Helps users notice if they came back to an old tab.
-  - [ ] 2.14 Implement `web/app/api/briefs/[name]/route.ts` `PUT`: receives parsed brief JSON, serialises to YAML, commits via GitHub API with author = service identity, message = `Update brief: <name>`.
-  - [ ] 2.15 On successful save, show a shadcn `Toast` with "Brief desat" and revert the form to view mode.
-  - [ ] 2.16 Implement `web/app/briefs/new/page.tsx`: renders `BriefForm` in `mode="create"` with empty defaults (name="", schedule="0 8 * * *", timezone="Europe/Madrid", one empty source, prompt="").
-  - [ ] 2.17 Implement `web/app/api/briefs/route.ts` `POST`: receives parsed brief JSON, infers filename from the `name` field (slugified), commits a new YAML file. Rejects if a file with that name already exists.
-  - [ ] 2.18 Add "Delete brief" button on the brief detail view (in view mode, secondary destructive variant, bottom of the form). Clicking opens a shadcn `Dialog` asking to confirm.
-  - [ ] 2.19 Implement `web/app/api/briefs/[name]/route.ts` `DELETE`: removes the file via GitHub API; after success, navigate to home and refresh the sidebar.
-  - [ ] 2.20 In the form, allow adding and removing `sources` dynamically: each source is a card; "+ Add source" appends; trash icon on the card removes.
-  - [ ] 2.21 Within each source card, allow adding and removing `queries` dynamically: each query is a row with the query token field and a per-query CSV checkbox (per the new schema).
-  - [ ] 2.22 Write inline help text for every field (name, schedule, timezone, slack_channel, mode_report_token, query token, csv, prompt). PLG style: what the field is, expected format, and a concrete example.
+- [x] **2.0 Brief CRUD: read, edit, create, delete** ✅
+  - [x] 2.1 `web/lib/github.ts` — `listBriefs / readBrief / writeBrief / deleteBrief` over the GitHub Contents API, commits authored as the Cooltra Reporting Bot service identity. Typed `BriefNotFoundError` / `BriefAlreadyExistsError` for distinguished 404/409.
+  - [x] 2.2 `web/lib/yaml.ts` — `parseBrief` accepts both the legacy shape (queries as bare strings + brief-level `csv`) and the canonical shape, normalising to the new `{token, csv}` layout (Option A from the schema-migration discussion). `serializeBrief` emits the canonical shape with a fixed key order. `slugifyBriefName` derives the filename from the name.
+  - [x] 2.3 `web/lib/schemas.ts` — zod schemas for query / source / brief plus a small `BriefListItem` row type for the list endpoint. `csv` and `timezone` are required (no `.default()`) so the RHF input/output types match.
+  - [x] 2.4 `GET /api/briefs` returns `{briefs: BriefListItem[]}`, sorted by name (`ca` collation); briefs that fail to parse are skipped and logged server-side.
+  - [x] 2.5 `GET /api/briefs/[name]` returns `{brief, sha}`; 404 when the file doesn't exist.
+  - [x] 2.6 `BriefSidebar` (client component) fetches `/api/briefs` and renders each brief as a `Link`, highlighting the active one via `useParams`. (No execution badge yet — lands in 4.8.)
+  - [x] 2.7 `+ New brief` button (shadcn primary, `size="sm"`, full-width) sits above the list and links to `/briefs/new`.
+  - [x] 2.8 `web/app/briefs/[name]/page.tsx` is a server component that reads + parses the brief, renders the title/filename header, and mounts `BriefForm` with `loadedAt = new Date().toISOString()` so the client can render the indicator.
+  - [x] 2.9 `BriefForm` (client) handles every field with always-visible muted help text below; the new-brief flow shares the same component via `intent="create"`.
+  - [x] 2.10 View mode renders each field as a read-only zinc-50 box; edit swaps in `<Input>` / `<Textarea>`. Prompt is 20 rows monospace in edit mode and a wrapped `<pre>` (max-h 40rem, scrollable) in view mode.
+  - [x] 2.11 react-hook-form + zod via `zodResolver(briefSchema)`. Validation errors render in `text-red-600` below each field; help text stays underneath rather than being replaced.
+  - [x] 2.12 Edit button toggles to edit; Cancel calls `reset(brief)` + back to view; Save fires `PUT /api/briefs/[name]`.
+  - [x] 2.13 "Carregat a HH:MM" (Catalunya tz) is rendered above the form; in create mode that line becomes "Nou brief".
+  - [x] 2.14 `PUT /api/briefs/[name]` validates with zod, serialises via `serializeBrief`, commits with the prior sha (optimistic concurrency surfaced from GitHub's 409 path if the sha is stale).
+  - [x] 2.15 Successful save toasts "Brief desat" via sonner, resets the form to the new values, swaps back to view mode, and calls `router.refresh()` so the sidebar picks up renamed briefs.
+  - [x] 2.16 `web/app/briefs/new/page.tsx` mounts `BriefForm intent="create"` with the spec'd empty defaults (schedule `"0 8 * * *"`, timezone `Europe/Madrid`, one empty source with one empty query).
+  - [x] 2.17 `POST /api/briefs` slugifies the brief name and rejects with 409 when a brief with that filename already exists (via `BriefAlreadyExistsError` from GitHub's 422). Rejects with 400 when the slug is empty.
+  - [x] 2.18 "Delete brief" button (destructive variant, with `Trash2` icon) sits at the bottom of the form in view mode and opens a shadcn Dialog confirmation.
+  - [x] 2.19 `DELETE /api/briefs/[name]` removes the file via the Contents API using the current sha; on success the client toasts, pushes `/`, and refreshes.
+  - [x] 2.20 Sources live in `useFieldArray({name: "sources"})`. Edit mode shows a `+ Add source` button + a trash icon per card (hidden when only one source remains).
+  - [x] 2.21 Queries live in a nested `useFieldArray` inside `<SourceCard>`. `+ Add query` appends `{token: "", csv: false}`; trash removes (hidden when only one query remains). The CSV checkbox is wired via `Controller`.
+  - [x] 2.22 Help text rewritten in the PLG template (what / format / example) across every field. Removed internal references to future tasks from the visible copy.
 
 - [ ] **3.0 Specialised form widgets: cron visual builder + Slack channel combobox**
   - [ ] 3.1 Implement `web/lib/cron.ts`: a `buildCron(state)` function that takes `{frequency, days, hour, minute}` and returns a canonical 5-field cron string; an inverse `parseCron(cron)` that returns the state or `null` when the cron doesn't fit the grid.
