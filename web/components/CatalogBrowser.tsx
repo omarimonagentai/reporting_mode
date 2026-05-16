@@ -2,13 +2,21 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronDown,
+  Database,
+  Plus,
+  Search,
+} from "lucide-react";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { ReportWithQueries } from "@/lib/mode-types";
@@ -20,9 +28,7 @@ type Props = {
 export function CatalogBrowser({ reports }: Props) {
   const [query, setQuery] = useState("");
   // Map of report token → set of query tokens whose badge has been
-  // inline-expanded by the user. We key by both so a query token
-  // accidentally shared across reports (shouldn't happen, but cheap to
-  // guard) doesn't collapse independently of the matching context.
+  // inline-expanded by the user.
   const [expandedBadges, setExpandedBadges] = useState<Set<string>>(
     () => new Set()
   );
@@ -40,7 +46,11 @@ export function CatalogBrowser({ reports }: Props) {
         autoOpen: false,
       }));
     }
-    const out: { report: ReportWithQueries; queries: typeof reports[number]["queries"]; autoOpen: boolean }[] = [];
+    const out: {
+      report: ReportWithQueries;
+      queries: typeof reports[number]["queries"];
+      autoOpen: boolean;
+    }[] = [];
     for (const report of reports) {
       const reportMatches =
         report.name.toLowerCase().includes(trimmed) ||
@@ -54,9 +64,6 @@ export function CatalogBrowser({ reports }: Props) {
       if (!reportMatches && !queryMatched) continue;
       out.push({
         report,
-        // If the search matched a query inside the report, show only
-        // those queries (the hit). If only the report name matched,
-        // show all its queries.
         queries: queryMatched ? matchingQueries : report.queries,
         autoOpen: queryMatched,
       });
@@ -64,10 +71,6 @@ export function CatalogBrowser({ reports }: Props) {
     return out;
   }, [reports, trimmed]);
 
-  // Compute the controlled `value` for the Accordion. When search is
-  // empty we use uncontrolled defaults (everything closed). When
-  // search is non-empty we force-open the reports whose queries
-  // matched, surfacing the hit without an extra click.
   const accordionValue = useMemo(() => {
     if (!trimmed) return undefined;
     return filtered.filter((f) => f.autoOpen).map((f) => f.report.token);
@@ -83,10 +86,22 @@ export function CatalogBrowser({ reports }: Props) {
     });
   }
 
+  // Stats strip: gives a quick at-a-glance of the catalog scale.
+  const totalQueries = reports.reduce(
+    (acc, r) => acc + r.queries.length,
+    0
+  );
+  const usedQueries = reports.reduce(
+    (acc, r) =>
+      acc + r.queries.filter((q) => (q.used_by?.length ?? 0) > 0).length,
+    0
+  );
+
   if (reports.length === 0) {
     return (
-      <div className="mt-10 rounded-lg border border-dashed border-zinc-300 bg-zinc-50/50 px-8 py-12 text-center">
-        <p className="text-sm text-zinc-500">
+      <div className="mt-10 rounded-xl border border-dashed border-zinc-300 bg-zinc-50/50 px-8 py-12 text-center">
+        <Database className="mx-auto size-8 text-zinc-400" />
+        <p className="mt-3 text-sm text-zinc-500">
           Cap report al space Mode configurat.
         </p>
       </div>
@@ -94,8 +109,31 @@ export function CatalogBrowser({ reports }: Props) {
   }
 
   return (
-    <div className="mt-6">
-      <div className="relative">
+    <div className="mt-4">
+      <div className="flex items-center gap-3 text-xs text-zinc-500">
+        <span>
+          <strong className="font-medium text-zinc-900">
+            {reports.length}
+          </strong>{" "}
+          reports
+        </span>
+        <span className="text-zinc-300">·</span>
+        <span>
+          <strong className="font-medium text-zinc-900">
+            {totalQueries}
+          </strong>{" "}
+          queries
+        </span>
+        <span className="text-zinc-300">·</span>
+        <span>
+          <strong className="font-medium text-zinc-900">
+            {usedQueries}
+          </strong>{" "}
+          en ús per algun brief
+        </span>
+      </div>
+
+      <div className="relative mt-4">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
         <Input
           type="search"
@@ -107,94 +145,23 @@ export function CatalogBrowser({ reports }: Props) {
       </div>
 
       {filtered.length === 0 && trimmed ? (
-        <div className="mt-6 rounded-lg border border-dashed border-zinc-300 bg-zinc-50/50 px-6 py-10 text-center text-sm text-zinc-500">
+        <div className="mt-6 rounded-xl border border-dashed border-zinc-300 bg-zinc-50/50 px-6 py-10 text-center text-sm text-zinc-500">
           Cap report o query coincideix amb «{trimmed}».
         </div>
       ) : (
         <Accordion
           type="multiple"
-          className="mt-4"
+          className="mt-5 gap-3"
           value={accordionValue}
-          // When search is empty, value is undefined → uncontrolled
-          // (defaults to all closed). When search is non-empty, we
-          // force-open via the `value` prop above. onValueChange is a
-          // no-op in the controlled case (matching reports stay open
-          // for the duration of the search) and unused otherwise.
         >
           {filtered.map(({ report, queries }) => (
-            <AccordionItem
+            <ReportCard
               key={report.token}
-              value={report.token}
-              className="border-b border-zinc-200 last:border-b-0"
-            >
-              <AccordionTrigger className="py-3">
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
-                  <span className="truncate text-sm font-medium text-zinc-900">
-                    {report.name}
-                  </span>
-                  <span className="font-mono text-[11px] text-zinc-400">
-                    {report.token}
-                  </span>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent>
-                <ul className="flex flex-col gap-2 py-2">
-                  {queries.map((q) => {
-                    const badgeOpen = expandedBadges.has(
-                      `${report.token}::${q.token}`
-                    );
-                    const count = q.used_by?.length ?? 0;
-                    return (
-                      <li
-                        key={q.token}
-                        className="rounded-md border border-zinc-100 bg-zinc-50/60 px-3 py-2"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm text-zinc-900">
-                              {q.name}
-                            </div>
-                            <div className="font-mono text-[11px] text-zinc-500">
-                              {q.token}
-                            </div>
-                          </div>
-                          <UsageBadge
-                            count={count}
-                            open={badgeOpen}
-                            onClick={() =>
-                              toggleBadge(report.token, q.token)
-                            }
-                          />
-                          {count === 0 && (
-                            <Link
-                              href={`/briefs/new?prefill_report=${report.token}`}
-                              className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] text-zinc-500 transition-colors hover:text-zinc-900"
-                            >
-                              <Plus className="size-3" />
-                              Create brief
-                            </Link>
-                          )}
-                        </div>
-                        {badgeOpen && count > 0 && (
-                          <ul className="mt-2 flex flex-col gap-1 border-t border-zinc-200 pt-2 pl-1">
-                            {q.used_by!.map((b) => (
-                              <li key={b.filename}>
-                                <Link
-                                  href={`/briefs/${b.filename}`}
-                                  className="text-xs text-zinc-700 hover:text-zinc-900 hover:underline"
-                                >
-                                  {b.name}
-                                </Link>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </AccordionContent>
-            </AccordionItem>
+              report={report}
+              queries={queries}
+              expandedBadges={expandedBadges}
+              onToggleBadge={toggleBadge}
+            />
           ))}
         </Accordion>
       )}
@@ -202,34 +169,156 @@ export function CatalogBrowser({ reports }: Props) {
   );
 }
 
-function UsageBadge({
+function ReportCard({
+  report,
+  queries,
+  expandedBadges,
+  onToggleBadge,
+}: {
+  report: ReportWithQueries;
+  queries: ReportWithQueries["queries"];
+  expandedBadges: Set<string>;
+  onToggleBadge: (reportToken: string, queryToken: string) => void;
+}) {
+  return (
+    <AccordionItem
+      value={report.token}
+      className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md data-[state=open]:shadow-md"
+    >
+      <AccordionTrigger className="rounded-none border-0 px-5 py-4 hover:no-underline">
+        <div className="flex min-w-0 flex-1 items-center gap-4 text-left">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-500">
+            <Database className="size-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-sm font-semibold text-zinc-900">
+              {report.name}
+            </h3>
+            <p className="mt-0.5 font-mono text-xs text-zinc-400">
+              {report.token}
+            </p>
+          </div>
+          <Badge
+            variant="secondary"
+            className="shrink-0 rounded-full bg-zinc-100 font-normal text-zinc-600"
+          >
+            {report.queries.length}{" "}
+            {report.queries.length === 1 ? "query" : "queries"}
+          </Badge>
+        </div>
+      </AccordionTrigger>
+      <AccordionContent className="px-5 pb-5 pt-0">
+        <div className="flex flex-col gap-2 border-t border-zinc-100 pt-3">
+          {queries.length === 0 ? (
+            <p className="text-xs italic text-zinc-400">
+              Aquest report no té queries.
+            </p>
+          ) : (
+            queries.map((q) => {
+              const badgeOpen = expandedBadges.has(
+                `${report.token}::${q.token}`
+              );
+              const count = q.used_by?.length ?? 0;
+              return (
+                <QueryRow
+                  key={q.token}
+                  name={q.name}
+                  token={q.token}
+                  count={count}
+                  open={badgeOpen}
+                  onToggleBadge={() => onToggleBadge(report.token, q.token)}
+                  consumers={q.used_by ?? []}
+                  reportToken={report.token}
+                />
+              );
+            })
+          )}
+        </div>
+      </AccordionContent>
+    </AccordionItem>
+  );
+}
+
+function QueryRow({
+  name,
+  token,
   count,
   open,
-  onClick,
+  onToggleBadge,
+  consumers,
+  reportToken,
 }: {
+  name: string;
+  token: string;
   count: number;
   open: boolean;
-  onClick: () => void;
+  onToggleBadge: () => void;
+  consumers: ReportWithQueries["queries"][number]["used_by"];
+  reportToken: string;
 }) {
-  if (count === 0) {
-    return (
-      <span className="whitespace-nowrap rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-400">
-        0 briefs
-      </span>
-    );
-  }
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] transition-colors",
-        open
-          ? "bg-zinc-900 text-white"
-          : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+    <div className="rounded-lg border border-zinc-100 bg-zinc-50/50 p-3 transition-colors hover:bg-zinc-50">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm text-zinc-900">{name}</p>
+          <p className="mt-0.5 font-mono text-xs text-zinc-400">{token}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {count === 0 ? (
+            <>
+              <Badge
+                variant="outline"
+                className="rounded-full border-zinc-200 font-normal text-zinc-400"
+              >
+                0 briefs
+              </Badge>
+              <Button asChild size="xs" variant="ghost">
+                <Link href={`/briefs/new?prefill_report=${reportToken}`}>
+                  <Plus />
+                  Create brief
+                </Link>
+              </Button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onToggleBadge}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors",
+                open
+                  ? "bg-zinc-900 text-white hover:bg-zinc-800"
+                  : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              )}
+              aria-expanded={open}
+            >
+              <span>
+                usat per {count} brief{count === 1 ? "" : "s"}
+              </span>
+              <ChevronDown
+                className={cn(
+                  "size-3 transition-transform",
+                  open && "rotate-180"
+                )}
+              />
+            </button>
+          )}
+        </div>
+      </div>
+      {open && count > 0 && consumers && consumers.length > 0 && (
+        <ul className="mt-3 space-y-1 border-t border-zinc-200 pt-2.5 pl-1">
+          {consumers.map((b) => (
+            <li key={b.filename}>
+              <Link
+                href={`/briefs/${b.filename}`}
+                className="inline-flex items-center gap-1.5 text-xs text-zinc-700 transition-colors hover:text-zinc-900 hover:no-underline"
+              >
+                <ArrowRight className="size-3 text-zinc-400" />
+                {b.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
-    >
-      {open ? "amaga" : `usat per ${count} brief${count === 1 ? "" : "s"}`}
-    </button>
+    </div>
   );
 }
