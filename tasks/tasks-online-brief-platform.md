@@ -135,6 +135,15 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - **Submit gate on invalid form** (Option B from the UX discussion): `useForm` runs with `mode: "onChange"` plus a `trigger()` on mount so `isValid` is correct from the first render. The Save/Create button is disabled when `!isValid`, and a small muted hint appears below the action row in edit mode explaining what to fix: «Omple els camps obligatoris per crear el brief.» (create) / «Hi ha camps obligatoris buits o invàlids; revisa els avisos en vermell.» (edit). Fixes the case where an empty New-brief form had Create looking actionable.
     - **Delete dialog references Brief Name, not filename**: the confirmation prose now reads «Vols esborrar el brief «<Brief Name>»?» using the human-readable name. The YAML slug is no longer surfaced to the user at confirmation time.
 
+  - [x] **2.24 (extra post-2.0 polish landing 2026-05-16)**
+    - **Asterisks for required + lazy error display**: form fields marked obligatory show a red `*` next to the label. Validation still runs continuously (RHF mode `onChange` + `trigger()` on mount) so `isValid` drives the disabled Save/Create button, but `aria-invalid` and the inline FieldError are gated on `(touchedFields[name] || isSubmitted)` via a new `shouldShowError(name)` predicate (powered by a `touchedAtPath` walker that handles nested arrays like `sources.0.queries.1.token`). Effect: opening New-brief is clean — asterisks, disabled Create, no red noise — and red feedback only appears once the user has interacted with a field.
+    - **Time Zone removed**: company runs in a single TZ, so the per-brief field was noise.
+      - Web: `Time Zone` input removed from the Outputs section; Schedule's «i» tooltip now states the schedule is interpreted in Catalunya local time.
+      - Schema: `timezone` removed from `briefSchema`; `parseBrief` no longer sets it; `serializeBrief` no longer emits it; `EMPTY_BRIEF` updated.
+      - Python: `due_runner.py` introduces a `SCHEDULE_TZ = "Europe/Madrid"` constant; `resolve_tz` falls back to it; `cfg.get("timezone")` is no longer read.
+      - YAMLs: both fixtures lost their `timezone:` field (the briefs are dummy fixtures so the resulting time shift for `fraude-bikes` has no production impact).
+    - **Tasks 5.1–5.3 closed as part of this commit** (CSV-per-query in executor + YAML migrations). The user confirmed the existing briefs are dummy fixtures, so doing the migration alongside the TZ change was safer than keeping two schemas in flight.
+
 - [ ] **3.0 Specialised form widgets: cron visual builder + Slack channel combobox**
   - [ ] 3.1 Implement `web/lib/cron.ts`: a `buildCron(state)` function that takes `{frequency, days, hour, minute}` and returns a canonical 5-field cron string; an inverse `parseCron(cron)` that returns the state or `null` when the cron doesn't fit the grid.
   - [ ] 3.2 Add a `humanize(cron, locale)` helper that returns "Cada dimarts a les 10:00" style strings in Catalan.
@@ -172,9 +181,9 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - **API failure** — show "No s'ha pogut carregar la informació d'execució" with a retry button.
 
 - [ ] **5.0 List-calendar + schema migration + polish + retire static dashboard**
-  - [ ] 5.1 Update `scripts/executor.py` to read `csv` from each query (`source["queries"][i]["csv"]`) instead of from the brief root. Keep backward-compat by treating missing `csv` field as `false`.
-  - [ ] 5.2 Migrate `briefs/fraude-bikes-unit-economics.yml`: convert each query from `{token, csv}` shorthand to the new structure (both queries get `csv: true`).
-  - [ ] 5.3 Migrate `briefs/app-version-adoption.yml`: convert the single query to the new structure with `csv: true`.
+  - [x] 5.1 Done as part of the timezone removal (commit 714219b). `scripts/executor.py` now reads `csv` from each query: `fetch_source` returns a `csv_by_name` mapping; `post_brief_to_slack` filters per-query before uploading. Bare-string queries still accepted and treated as `csv: false`.
+  - [x] 5.2 Done in the same commit. `briefs/fraude-bikes-unit-economics.yml` migrated: brief-level `csv: true` removed; both queries converted to `{token, csv: true}`.
+  - [x] 5.3 Done in the same commit. `briefs/app-version-adoption.yml` migrated: brief-level `csv: true` removed; the single query converted to `{token, csv: true}`. `timezone:` also dropped (see 2.24 for the company-wide TZ change).
   - [ ] 5.4 Manually trigger both briefs via the `Run brief` workflow on the feature branch's Vercel preview deployment URL; verify the Slack message + CSV thread reply still arrive correctly.
   - [ ] 5.5 Implement `web/app/schedule/page.tsx`: server component that fetches `/api/briefs`, computes each brief's next fire time (using a JS cron library like `cron-parser`), and renders a sorted table.
   - [ ] 5.6 Table columns: brief name (clickable, navigates to detail), next fire (relative: "en 3h" + absolute: "16:00 dl 16/05"), schedule humanized, last run status icon.

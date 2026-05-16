@@ -40,7 +40,7 @@ The data layer stays hybrid: briefs continue to be persisted as YAML files in th
 
 ### Brief List & Detail View
 
-6. The main content area for a brief MUST present every field of the brief as an editable form: `name`, `schedule`, `timezone`, `slack_channel`, list of `sources` (each with `mode_report_token` and list of queries), and `prompt`.
+6. The main content area for a brief MUST present every field of the brief as an editable form: `name`, `schedule`, `slack_channel`, list of `sources` (each with `mode_report_token` and list of queries — each query being `{token, csv}`), and `prompt`. The `timezone` field has been removed from the data model; the company runs in a single TZ (`Europe/Madrid`, displayed as "Catalunya") hardcoded in the Python scheduler.
 7. **Each field MUST have an adjacent inline description** explaining what the field is for, the expected format, and a concrete example. The description MAY be expanded/collapsed but is visible by default for a new user (PLG: no onboarding needed).
 8. The `prompt` field MUST be a multi-line text area with monospace font and visible line wrapping, sized to comfortably show ~20 lines without scrolling.
 9. The application MUST allow the user to add and remove **sources** dynamically (rows of the form).
@@ -64,7 +64,7 @@ The data layer stays hybrid: briefs continue to be persisted as YAML files in th
 18. The schedule MUST be set through a **visual builder** (no raw cron typing required in the default flow). The builder allows the user to specify:
     - The frequency: every day, specific days of the week, specific day of the month, or every N hours.
     - The time(s) of day (HH:MM, in 15-minute increments).
-    - The timezone (default: `Europe/Madrid`).
+    (Time zone is not configurable — see §6 "No per-brief Time Zone field". The builder labels times as Catalunya local.)
 19. The visual builder MUST emit a **valid cron expression** persisted to the YAML, plus a human-readable description shown to the user (e.g., "Cada dimarts a les 10:00 hora local Cooltra").
 20. The visual builder MAY include a small "Advanced: edit cron directly" toggle for power users; this is a stretch goal, not a v1 requirement.
 
@@ -144,12 +144,11 @@ T4. Adding the Run Now button requires extending the platform's GitHub PAT scope
 - **Help-text affordance**: every form field exposes its explanation behind a small **Info icon next to the label**. Hover (or keyboard focus) opens a shadcn Tooltip with the help text; on touch devices a tap toggles it. Originally implemented as a click-triggered shadcn Popover during 2.0; switched to Tooltip after user feedback that the icon felt empty on hover. Reason for hiding the help in the first place: when always-visible, the descriptions crowded the form visually. (Deviates from the original "no expandable tooltips" stance below, kept for history; the user revised the call after seeing 2.0 live.)
 - **Form layout: Brief Name above, Inputs section, Outputs section.** The detail view is structured as a single `Brief Name` field at the top (the brief's identity), followed by two bordered cards:
   - **Inputs** card — what the LLM ingests: the list of `Sources` (each one a Mode report plus its queries) and the `Prompt`.
-  - **Outputs** card — when and where the brief is published: `Schedule`, `Time Zone`, `Slack Channel`.
+  - **Outputs** card — when and where the brief is published: `Schedule`, `Slack Channel`. (Time Zone is no longer surfaced; see the next bullet.)
   This grouping was added after 2.0 user review to give users a mental model of the brief lifecycle (data in → LLM → message out) before they read any individual field.
 - **Canonical UI labels** (the chrome strings that appear on screen and that support / documentation must reference; the corresponding YAML keys are shown in parens — see §4.6 for the structural data model):
   - Brief Name (`name`)
   - Schedule (`schedule`)
-  - Time Zone (`timezone`)
   - Slack Channel (`slack_channel`)
   - Sources (`sources[]`)
   - Mode report (`sources[].mode_report_token` — the "token" suffix is dropped from the label because it was jargon)
@@ -158,6 +157,8 @@ T4. Adding the Run Now button requires extending the platform's GitHub PAT scope
   - CSV (`sources[].queries[].csv`)
   - Prompt (`prompt`)
   Schedule is shown without the "(cron)" suffix it carried during 2.0 — non-technical users were bouncing off the field. The cron syntax stays the internal representation but is no longer surfaced in the label. The visual builder (task 3.0) makes the syntax irrelevant to the user.
+- **No per-brief Time Zone field**: every brief schedule is interpreted in the company-wide TZ (hardcoded `Europe/Madrid`, surfaced in the UI as "Catalunya"). Reason: the entire company operates on the same timezone, so the field was noise. The Schedule «i» tooltip mentions the TZ explicitly; the YAML no longer carries a `timezone:` field and the Python `due_runner.py` ignores any leftover value. If multi-TZ ever becomes a real requirement, re-introducing the field is straightforward (`resolve_tz` already accepts a name).
+- **Required fields are marked with a red asterisk** next to the label. Validation runs continuously in the background to drive the disabled state of Save / Create, but field-level error messages (and the red `aria-invalid` border) are only shown after the user has touched the field or attempted to submit. The opening state of New-brief is clean: asterisks, a disabled Create button, no red noise.
 - **Visual language**: continue with shadcn/ui aesthetic already established in the static dashboard (zinc palette, Inter font, JetBrains Mono for code/tokens, generous padding, subtle borders, rounded-lg). Reuse the design tokens.
 - **Sidebar width**: ~280px on desktop. On screens narrower than `lg` (1024px), the sidebar collapses to a hamburger menu.
 - ~~**Form fields with inline help**: each field renders as `<Label> + <Input> + <description below in small muted text>`. No expandable tooltips at first — just always-visible muted text. PLG philosophy: zero friction, zero hidden info.~~ Superseded by the "Help-text affordance" bullet above (Info-icon Tooltip) after 2.0 user review.
