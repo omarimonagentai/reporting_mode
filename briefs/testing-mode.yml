@@ -1,4 +1,4 @@
-name: Testing mode
+name: Testing mode 1445
 schedule: 45 14 * * *
 slack_channel: test-github-oriol
 sources:
