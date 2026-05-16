@@ -73,7 +73,13 @@ def is_due(schedule_cron, now_utc, window_seconds, tz_name=None):
     if prev_fire.tzinfo is None:
         prev_fire = prev_fire.replace(tzinfo=tz)
     delta = (now_utc - prev_fire.astimezone(timezone.utc)).total_seconds()
-    return delta < window_seconds
+    # Inclusive bound (`<=`, not `<`): the master scanner runs `*/15 * * * *`
+    # and the window is also 15 min, so a brief whose previous fire is
+    # exactly 15 min ago would otherwise fall through the cracks at the
+    # following tick. GH Actions cron drifts in practice — ticks never
+    # arrive with millisecond precision — so a duplicate dispatch from
+    # delta == window_seconds is effectively impossible.
+    return delta <= window_seconds
 
 
 def load_brief_meta(path):
