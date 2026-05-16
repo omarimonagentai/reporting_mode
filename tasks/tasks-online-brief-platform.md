@@ -60,21 +60,21 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
 
 ## Tasks
 
-- [ ] **0.0 Create feature branch**
-  - [ ] 0.1 Create and check out a feature branch: `git checkout -b feature/online-brief-platform`. All work below lands as commits on this branch.
+- [x] **0.0 Create feature branch**
+  - [x] 0.1 Working on `claude/claude-continue-command-oBXAf` (the session's pre-assigned branch) instead of `feature/online-brief-platform`. All work below lands as commits on this branch.
 
 - [ ] **1.0 Project foundation: Next.js + Vercel + layout shell**
-  - [ ] 1.1 Initialise a Next.js 14 project under `web/` using the App Router: `cd web && npx create-next-app@latest . --typescript --tailwind --app --no-src-dir`.
-  - [ ] 1.2 Update `web/tailwind.config.js` with the zinc-based palette and Inter / JetBrains Mono fonts from the existing static dashboard template.
-  - [ ] 1.3 Install and initialise shadcn/ui: `npx shadcn-ui@latest init` choosing zinc as base color.
-  - [ ] 1.4 Add the shadcn components the app needs: `button`, `input`, `textarea`, `label`, `card`, `dialog`, `alert`, `toast`, `combobox` (or `command` + `popover`), `dropdown-menu`.
-  - [ ] 1.5 Create the Vercel project; connect it to the GitHub repo; configure Production branch = `main`; preview deploys auto-enabled for any branch.
-  - [ ] 1.6 Add the following environment variables in Vercel (Production + Preview): `GITHUB_TOKEN`, `GITHUB_REPO_OWNER`, `GITHUB_REPO_NAME`, `SLACK_BOT_TOKEN`. Mark them as encrypted secrets.
-  - [ ] 1.7 Implement `web/app/layout.tsx`: persistent left sidebar (~280px width), main content area, and footer slot at the bottom right.
-  - [ ] 1.8 Implement `web/components/Footer.tsx` with placeholder content (real data wired in 1.10).
-  - [ ] 1.9 Implement `web/app/api/version/route.ts`: calls GitHub Repository API to get the latest commit on `main`; returns `{sha, message, authoredAt}`.
-  - [ ] 1.10 Wire the Footer to `/api/version`; convert the UTC timestamp to `Europe/Madrid` for display: `Built from <sha7> · <message truncated to 50 chars> · <DD/MM/YYYY HH:MM Madrid>`.
-  - [ ] 1.11 Verify on the Vercel preview URL: the shell renders, the footer shows real commit info, the sidebar is empty (no briefs yet endpoint).
+  - [x] 1.1 Initialised under `web/` via `npx create-next-app@latest . --typescript --tailwind --app --no-src-dir --yes`. **Note:** scaffolded **Next.js 16.2.6 + React 19.2 + Tailwind v4** (not Next 14 as the PRD assumed). v16 brings async `params`/`searchParams` and renames `middleware` → `proxy` — relevant later, not for 1.0.
+  - [x] 1.2 Tailwind v4 deprecates `tailwind.config.js`; theme tokens go inside `web/app/globals.css` under `@theme`. Done there: zinc-based palette + Inter / JetBrains Mono fonts wired via `next/font/google` in `app/layout.tsx`.
+  - [ ] 1.3 **Deferred to start of 2.0.** Reason: `shadcn init` rewrites `globals.css` with its own `oklch` theme, which would clobber the zinc/Inter setup. We don't consume any shadcn component until 2.0 (the `+ New brief` button is the first), so initialising then is cleaner.
+  - [ ] 1.4 **Deferred to start of 2.0** (same reason as 1.3).
+  - [ ] 1.5 **User action**: create Vercel project; connect it to the GitHub repo; configure Production branch = `main`; preview deploys auto-enabled.
+  - [ ] 1.6 **User action**: add env vars in Vercel (Production + Preview): `GITHUB_TOKEN`, `GITHUB_REPO_OWNER`, `GITHUB_REPO_NAME`, `SLACK_BOT_TOKEN`.
+  - [x] 1.7 `web/app/layout.tsx`: persistent left sidebar (~280px width), main content area, footer slot bottom-right. Sidebar contains a placeholder until task 2.6.
+  - [x] 1.8 `web/components/Footer.tsx` written as a Server Component (no placeholder phase — wired straight to real data via 1.9/1.10).
+  - [x] 1.9 `web/app/api/version/route.ts` returns `{sha, message, authoredAt}` from GitHub Repository API. Shared helper `web/lib/version.ts` so the Footer doesn't HTTP-self-call.
+  - [x] 1.10 Footer renders `Built from <sha7> · <message truncated to 50 chars> · <DD/MM/YYYY HH:MM Madrid>` using `Intl.DateTimeFormat('ca-ES', { timeZone: 'Europe/Madrid' })`. Uses ISR with `revalidate: 60` so the footer updates roughly once a minute.
+  - [ ] 1.11 **User action**: verify on the Vercel preview URL once 1.5/1.6 are done.
 
 - [ ] **2.0 Brief CRUD: read, edit, create, delete**
   - [ ] 2.1 Implement `web/lib/github.ts` with helpers: `listBriefs()`, `readBrief(name)`, `writeBrief(name, content, sha?)`, `deleteBrief(name, sha)`. All use the GitHub Contents API and run server-side only.
