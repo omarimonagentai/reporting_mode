@@ -7,6 +7,7 @@ type RawBrief = {
   name: string;
   schedule: string;
   slack_channel: string;
+  reference_link?: string | null;
   csv?: boolean;
   sources: RawSource[];
   prompt: string;
@@ -34,6 +35,7 @@ export function parseBrief(content: string): Brief {
     name: raw.name,
     schedule: raw.schedule,
     slack_channel: raw.slack_channel,
+    reference_link: raw.reference_link ?? "",
     sources,
     prompt: raw.prompt,
     owner_email: raw.owner_email ?? null,
@@ -41,17 +43,20 @@ export function parseBrief(content: string): Brief {
 }
 
 export function serializeBrief(brief: Brief): string {
-  const ordered = {
+  const ordered: Record<string, unknown> = {
     name: brief.name,
     schedule: brief.schedule,
     slack_channel: brief.slack_channel,
-    sources: brief.sources.map((src) => ({
-      mode_report_token: src.mode_report_token,
-      queries: src.queries.map((q) => ({ token: q.token, csv: q.csv })),
-    })),
-    prompt: brief.prompt,
-    owner_email: brief.owner_email ?? null,
   };
+  if (brief.reference_link && brief.reference_link.trim() !== "") {
+    ordered.reference_link = brief.reference_link.trim();
+  }
+  ordered.sources = brief.sources.map((src) => ({
+    mode_report_token: src.mode_report_token,
+    queries: src.queries.map((q) => ({ token: q.token, csv: q.csv })),
+  }));
+  ordered.prompt = brief.prompt;
+  ordered.owner_email = brief.owner_email ?? null;
 
   return yaml.dump(ordered, {
     sortKeys: false,

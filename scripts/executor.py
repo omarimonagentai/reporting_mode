@@ -14,6 +14,8 @@ The brief YAML schema (see briefs/*.yml for examples):
     name: str
     schedule: cron string                (read by due_runner.py, ignored here)
     slack_channel: str                   (target channel for chat.postMessage)
+    reference_link: str                  (optional; URL appended at the end of
+                                          the Slack message as a clickable link)
     sources:
       - mode_account: str                (optional; falls back to env var)
         mode_report_token: str
@@ -366,6 +368,12 @@ def post_brief_to_slack(brief, sources_data, brief_text):
     formatted = markdown_to_slack(brief_text)
     today_str = date.today().strftime("%d/%m/%Y")
     body = f"📊 *{brief['name']} — {today_str}*\n\n{formatted}"
+
+    # Optional reference link: appended on its own line at the end of the
+    # message, rendered as a clickable Slack link.
+    ref_link = (brief.get("reference_link") or "").strip()
+    if ref_link:
+        body += f"\n\n🔗 <{ref_link}|Reference link>"
 
     print(f"-> Postejant a #{channel}...")
     response = client.chat_postMessage(channel=channel, text=body)

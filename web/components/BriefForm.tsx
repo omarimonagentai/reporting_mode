@@ -56,6 +56,7 @@ const EMPTY_BRIEF: Brief = {
   name: "",
   schedule: "0 8 * * *",
   slack_channel: "",
+  reference_link: "",
   sources: [{ mode_report_token: "", queries: [{ token: "", csv: false }] }],
   prompt: "",
   owner_email: null,
@@ -70,6 +71,8 @@ const FIELD_HELP = {
     "Quan s'executa el brief. El Schedule s'interpreta sempre amb l'hora local de Catalunya (canvis d'hora gestionats automàticament). Internament és una expressió cron de 5 camps (minut hora dia-mes mes dia-setmana). Exemples: «0 8 * * *» = cada dia a les 08:00; «0 10 * * 1» = cada dilluns a les 10:00.",
   slack_channel:
     'Canal de Slack on es publica el resultat. Format: només el nom, sense el «#» del davant. Exemple: «test-github-oriol». El bot ha de ser membre del canal abans del proper run; si encara no ho és, fes «/invite @cooltra-reporting-bot» dins del canal.',
+  reference_link:
+    "URL opcional que s'afegeix com a línia clicable al final del missatge de Slack. Útil per indicar als destinataris on poden veure les dades de referència o ampliar el context. Format: URL completa (https://...). Exemple: «https://app.mode.com/ecooltra706/reports/abc123».",
   prompt:
     "Instruccions que rep el LLM per generar el brief. Les dades de cada query s'adjunten automàticament al final del prompt. Format: text lliure (pots usar markdown, llistes, seccions «## Title»). Sigues específic amb el format de sortida que esperes.",
   mode_report:
@@ -700,6 +703,35 @@ export function BriefForm(props: Props) {
           )}
           {shouldShowError("slack_channel") && (
             <FieldError message={errors.slack_channel?.message} />
+          )}
+        </div>
+
+        <div>
+          <LabelRow
+            htmlFor="reference_link"
+            hint={{ text: FIELD_HELP.reference_link, label: "Reference link" }}
+          >
+            Reference link
+          </LabelRow>
+          {isEditing ? (
+            <Input
+              id="reference_link"
+              type="url"
+              placeholder="https://..."
+              {...register("reference_link")}
+              aria-invalid={
+                shouldShowError("reference_link") && !!errors.reference_link
+              }
+            />
+          ) : brief.reference_link ? (
+            <ReadonlyValue mono>{brief.reference_link}</ReadonlyValue>
+          ) : (
+            <div className="rounded-md border border-dashed border-zinc-200 bg-zinc-50/50 px-3 py-2 text-sm italic text-zinc-400">
+              Cap reference link
+            </div>
+          )}
+          {shouldShowError("reference_link") && (
+            <FieldError message={errors.reference_link?.message} />
           )}
         </div>
       </section>
