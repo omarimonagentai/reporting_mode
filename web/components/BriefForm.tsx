@@ -58,20 +58,20 @@ const formSchema = briefSchema;
 type FormValues = z.infer<typeof formSchema>;
 
 const FIELD_HELP = {
-  name: 'Nom llegible del brief (ex: "App Version Adoption"). Es mostra a la barra lateral i a Slack. El nom del fitxer es deriva d\'aquest valor.',
+  name: 'Nom llegible del brief. Apareix a la barra lateral i com a títol del missatge a Slack. Format: text lliure. Exemple: «App Version Adoption». El nom del fitxer .yml es deriva d\'aquest valor només a la creació; editar-lo després no mou el fitxer.',
   schedule:
-    'Expressió cron de 5 camps (minut hora dia-mes mes dia-setmana). Ex: "0 8 * * *" = cada dia a les 08:00. El constructor visual arribarà a la tasca 3.0.',
+    'Quan s\'executa el brief. Format: cron de 5 camps (minut hora dia-mes mes dia-setmana). Exemples: «0 8 * * *» = cada dia a les 08:00; «0 10 * * 1» = cada dilluns a les 10:00.',
   timezone:
-    'Zona horària amb què s\'interpreta el cron. Ex: "Europe/Madrid". Per defecte "Europe/Madrid".',
+    'Zona horària amb què s\'interpreta el cron. Format: identificador IANA. Exemples: «Europe/Madrid» (per defecte, gestiona els canvis d\'hora), «UTC», «America/New_York».',
   slack_channel:
-    'Canal de Slack on es publica el brief. Sense "#", només el nom (ex: "test-github-oriol"). El bot ha de ser membre del canal.',
+    'Canal de Slack on es publica el resultat. Format: només el nom, sense el «#» del davant. Exemple: «test-github-oriol». El bot ha de ser membre del canal abans del proper run; si encara no ho és, fes «/invite @cooltra-reporting-bot» dins del canal.',
   prompt:
-    "Prompt complet que rep el LLM amb les dades de Mode adjuntades. Pots usar markdown, llistes i instruccions estructurades.",
+    "Instruccions que rep el LLM per generar el brief. Les dades de cada query s'adjunten automàticament al final del prompt. Format: text lliure (pots usar markdown, llistes, seccions «## Title»). Sigues específic amb el format de sortida que esperes.",
   mode_report_token:
-    'Token del report de Mode (l\'string que apareix a la URL del report: "/reports/<token>"). Identifica el dashboard origen.',
+    'Token del report de Mode des d\'on s\'extrauen les dades. Format: l\'string alfanumèric que apareix a la URL del report a app.mode.com («/reports/<token>»). Exemple: «7b89f8a2f8d8».',
   query_token:
-    'Token de la query dins del report de Mode. Apareix a la URL ampliada de la query individual. Determina quines dades es passen al LLM.',
-  csv: "Si està marcat, s'adjunta el CSV brut d'aquesta query com a resposta dins del thread de Slack.",
+    'Token d\'una query individual dins del report de Mode. Format: l\'string que apareix quan obres la query ampliada a Mode. Exemple: «4c71991707f0». Un mateix source pot tenir diverses queries.',
+  csv: "Marca-ho si vols rebre el CSV brut d'aquesta query com a resposta dins del thread del brief a Slack. Útil quan algú vol fer un anàlisi propi més enllà del resum del LLM.",
 };
 
 function formatLoadedAt(iso: string): string {
