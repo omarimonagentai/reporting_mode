@@ -29,6 +29,110 @@ function artifactCouldContainSlug(name: string, slug: string): boolean {
  * don't contain the slug, or whose `<slug>.brief.md` is missing
  * (failed runs), are silently skipped.
  */
+/**
+ * Bulk variant of fetchLatestBriefOutputs for the global /history
+ * page. Lists artifacts ONCE and resolves multiple slugs from the
+ * same downloaded zip(s) — a `runs-due-*` artifact bundle often
+ * contains `.brief.md` for several briefs at once, and we don't
+ * want to refetch the same zip per slug.
+ *
+ * Returns a Map<slug, BriefOutput[]>. Slugs absent from the map
+ * mean "no captured outputs yet" (recently created brief, every
+ * run failed before GROQ, or the brief is too new for any 90-day
+ * artifact to exist).
+ */
+export async function fetchAllRecentBriefOutputs(
+  slugs: string[],
+  limit = 3
+): Promise<Map<string, BriefOutput[]>> {
+  const result = new Map<string, BriefOutput[]>();
+  if (slugs.length === 0) return result;
+
+  const wanted = new Set(slugs);
+
+  const artifacts = await listArtifacts();
+  const candidates = artifacts
+    .filter(
+      (a) =>
+        !a.expired &&
+        (a.name.startsWith("run-") || a.name.startsWith("runs-due-"))
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+  for (const artifact of candidates) {
+    // Slugs that still need more entries AND could be inside this
+    // artifact (run-<slug>-* targets one specific slug; runs-due-*
+    // could contain any subset).
+    const stillNeeded = [...wanted].filter(
+      (s) =>
+        artifactCouldContainSlug(artifact.name, s) &&
+        (result.get(s)?.length ?? 0) < limit
+    );
+    if (stillNeeded.length === 0) {
+      // Either every requested slug is full, or this artifact is
+      // unrelated. Skip without downloading.
+      const anyOpen = [...wanted].some(
+        (s) => (result.get(s)?.length ?? 0) < limit
+      );
+      if (!anyOpen) break;
+      continue;
+    }
+
+    let zip;
+    try {
+      zip = await downloadZip(artifact);
+    } catch (err) {
+      console.error(
+        `fetchAll: failed to download artifact ${artifact.id} (${artifact.name}):`,
+        err
+      );
+      continue;
+    }
+    if (!zip) continue;
+
+    for (const slug of stillNeeded) {
+      if ((result.get(slug)?.length ?? 0) >= limit) continue;
+      const briefEntry = zip.file(`${slug}.brief.md`);
+      if (!briefEntry) continue;
+      let markdown: string;
+      try {
+        markdown = await briefEntry.async("string");
+      } catch (err) {
+        console.error(
+          `fetchAll: failed to read ${slug}.brief.md inside ${artifact.name}:`,
+          err
+        );
+        continue;
+      }
+      let runStatus: "success" | "failed" = "success";
+      const runEntry = zip.file(`${slug}.run.json`);
+      if (runEntry) {
+        try {
+          const content = await runEntry.async("string");
+          const record = JSON.parse(content) as RunRecord;
+          runStatus = record.status;
+        } catch {
+          // keep the default
+        }
+      }
+      const entry: BriefOutput = {
+        markdown,
+        created_at: artifact.created_at,
+        artifact_name: artifact.name,
+        run_status: runStatus,
+      };
+      const existing = result.get(slug);
+      if (existing) existing.push(entry);
+      else result.set(slug, [entry]);
+    }
+  }
+
+  return result;
+}
+
 export async function fetchLatestBriefOutputs(
   slug: string,
   limit = 3
