@@ -1,3 +1,7 @@
+import { CronExpressionParser } from "cron-parser";
+
+export const TIMEZONE = "Europe/Madrid";
+
 export type Minute = 0 | 15 | 30 | 45;
 export const ALLOWED_MINUTES: Minute[] = [0, 15, 30, 45];
 
@@ -121,4 +125,45 @@ export function humanize(cron: string): string | null {
     case "monthly":
       return `El dia ${state.frequency.dayOfMonth} de cada mes a les ${time}`;
   }
+}
+
+export function nextFireAt(cron: string, fromUtc: Date = new Date()): Date | null {
+  try {
+    const expr = CronExpressionParser.parse(cron, {
+      currentDate: fromUtc,
+      tz: TIMEZONE,
+    });
+    return expr.next().toDate();
+  } catch {
+    return null;
+  }
+}
+
+export function formatCatalunyaDateTime(date: Date): string {
+  const parts = new Intl.DateTimeFormat("ca-ES", {
+    timeZone: TIMEZONE,
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+  // ca-ES short weekdays render with a trailing period ("dl." / "dt."); drop it.
+  const weekday = get("weekday").replace(/\.$/, "");
+  return `${get("hour")}:${get("minute")} ${weekday} ${get("day")}/${get("month")}`;
+}
+
+export function relativeFromNow(date: Date, now: Date = new Date()): string {
+  const ms = date.getTime() - now.getTime();
+  if (ms <= 0) return "ja";
+  const m = Math.floor(ms / 60_000);
+  if (m < 1) return "en menys d'un minut";
+  if (m < 60) return `en ${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `en ${h}h`;
+  const d = Math.floor(h / 24);
+  return `en ${d}d`;
 }
