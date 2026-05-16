@@ -21,6 +21,12 @@ export const briefSchema = z.object({
     .min(1, "El Schedule és obligatori")
     .regex(CRON_5_FIELD, "El Schedule ha de ser una expressió cron de 5 camps"),
   slack_channel: z.string().min(1, "El Slack Channel és obligatori"),
+  reference_link: z
+    .string()
+    .refine(
+      (v) => v === "" || /^https?:\/\/.+/i.test(v),
+      "El Reference link ha de començar amb http:// o https://"
+    ),
   sources: z.array(sourceSchema).min(1, "Cal almenys un Source"),
   prompt: z.string().min(1, "El Prompt és obligatori"),
   owner_email: z.string().email().nullable().optional(),
