@@ -1,4 +1,4 @@
-name: Test del cron
+name: Test del cron tasca 3.0
 schedule: 15 13 * * *
 slack_channel: test-github-oriol
 sources:
