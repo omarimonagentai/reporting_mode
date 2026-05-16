@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -32,31 +33,73 @@ export function BriefSidebarList({
         const href = `/briefs/${brief.filename}`;
         const isActive = pathname === href;
         return (
-          <li key={brief.filename}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  href={href}
-                  className={cn(
-                    "flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-sm text-zinc-700 transition-colors",
-                    isActive
-                      ? "bg-zinc-100 font-medium text-zinc-900"
-                      : "hover:bg-zinc-100"
-                  )}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <StatusIcon run={brief.run} />
-                    <span className="min-w-0 flex-1 truncate">{brief.name}</span>
-                  </div>
-                  <RunMeta run={brief.run} />
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="right">{brief.name}</TooltipContent>
-            </Tooltip>
-          </li>
+          <BriefRow
+            key={brief.filename}
+            brief={brief}
+            href={href}
+            isActive={isActive}
+          />
         );
       })}
     </ul>
+  );
+}
+
+function BriefRow({
+  brief,
+  href,
+  isActive,
+}: {
+  brief: BriefListItemWithRun;
+  href: string;
+  isActive: boolean;
+}) {
+  const nameRef = useRef<HTMLSpanElement>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
+
+  useEffect(() => {
+    const el = nameRef.current;
+    if (!el) return;
+    const check = () => {
+      setIsTruncated(el.scrollWidth > el.clientWidth);
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [brief.name]);
+
+  const row = (
+    <Link
+      href={href}
+      className={cn(
+        "flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-sm text-zinc-700 transition-colors",
+        isActive
+          ? "bg-zinc-100 font-medium text-zinc-900"
+          : "hover:bg-zinc-100"
+      )}
+    >
+      <div className="flex items-center gap-1.5">
+        <StatusIcon run={brief.run} />
+        <span ref={nameRef} className="min-w-0 flex-1 truncate">
+          {brief.name}
+        </span>
+      </div>
+      <RunMeta run={brief.run} />
+    </Link>
+  );
+
+  return (
+    <li>
+      {isTruncated ? (
+        <Tooltip>
+          <TooltipTrigger asChild>{row}</TooltipTrigger>
+          <TooltipContent side="right">{brief.name}</TooltipContent>
+        </Tooltip>
+      ) : (
+        row
+      )}
+    </li>
   );
 }
 
