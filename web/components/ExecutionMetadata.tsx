@@ -78,8 +78,15 @@ export function ExecutionMetadata({ filename }: { filename: string }) {
   );
 
   useEffect(() => {
+    // Force on initial mount. The /api/runs/[brief] endpoint has a
+    // 5-min cache that would otherwise serve a stale entry from
+    // before the user's most recent Run Now / scheduled run. The
+    // sidebar already fetches fresh via fetchLatestRuns (no API
+    // cache) so anything less than force=true here causes a
+    // visible discrepancy: sidebar shows the latest run but this
+    // card shows an older one.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load(false);
+    void load(true);
   }, [load]);
 
   if (state.kind === "loading") {
