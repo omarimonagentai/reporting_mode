@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { BriefForm } from "@/components/BriefForm";
-import { EarlyDataWarning } from "@/components/EarlyDataWarning";
 import { ExecutionMetadata } from "@/components/ExecutionMetadata";
 import { HistoryDrawerButton } from "@/components/HistoryDrawerButton";
 import { RunNowButton } from "@/components/RunNowButton";
@@ -44,10 +43,6 @@ export default async function BriefDetailPage({ params }: Params) {
       </div>
 
       <div className="mt-6">
-        <EarlyDataWarning />
-      </div>
-
-      <div className="mt-4">
         <ExecutionMetadata filename={name} />
       </div>
 
