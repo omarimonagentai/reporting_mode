@@ -3,8 +3,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import {
+  Controller,
+  useFieldArray,
+  useForm,
+  type Control,
+  type FieldErrors,
+  type UseFormRegister,
+} from "react-hook-form";
 import { toast } from "sonner";
+import { Plus, Trash2 } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,7 +88,170 @@ function ReadonlyValue({
   );
 }
 
-export function BriefForm({ filename, initialBrief, initialSha, loadedAt }: Props) {
+type SourceCardProps = {
+  sourceIdx: number;
+  control: Control<FormValues>;
+  register: UseFormRegister<FormValues>;
+  errors: FieldErrors<FormValues>;
+  isEditing: boolean;
+  onRemoveSource: () => void;
+  canRemoveSource: boolean;
+};
+
+function SourceCard({
+  sourceIdx,
+  control,
+  register,
+  errors,
+  isEditing,
+  onRemoveSource,
+  canRemoveSource,
+}: SourceCardProps) {
+  const queries = useFieldArray({
+    control,
+    name: `sources.${sourceIdx}.queries`,
+  });
+
+  const sourceErrors = errors.sources?.[sourceIdx];
+
+  return (
+    <div className="rounded-md border border-zinc-200 bg-white p-4">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-medium text-zinc-500">
+          Source #{sourceIdx + 1}
+        </div>
+        {isEditing && canRemoveSource && (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            onClick={onRemoveSource}
+            aria-label={`Remove source ${sourceIdx + 1}`}
+          >
+            <Trash2 />
+          </Button>
+        )}
+      </div>
+
+      <div className="mt-2">
+        <Label htmlFor={`mode_report_token_${sourceIdx}`}>
+          Mode report token
+        </Label>
+        {isEditing ? (
+          <Input
+            id={`mode_report_token_${sourceIdx}`}
+            className="font-mono"
+            {...register(`sources.${sourceIdx}.mode_report_token` as const)}
+            aria-invalid={!!sourceErrors?.mode_report_token}
+          />
+        ) : (
+          <Controller
+            control={control}
+            name={`sources.${sourceIdx}.mode_report_token` as const}
+            render={({ field }) => (
+              <ReadonlyValue mono>{field.value}</ReadonlyValue>
+            )}
+          />
+        )}
+        <FieldHelp text={FIELD_HELP.mode_report_token} />
+        <FieldError message={sourceErrors?.mode_report_token?.message} />
+      </div>
+
+      <div className="mt-4">
+        <Label>Queries</Label>
+        <div className="mt-2 flex flex-col gap-2">
+          {queries.fields.map((queryField, qIdx) => {
+            const queryErrors = sourceErrors?.queries?.[qIdx];
+            return (
+              <div
+                key={queryField.id}
+                className="flex items-start gap-3 rounded-md border border-zinc-100 bg-zinc-50 px-3 py-2"
+              >
+                <div className="flex-1">
+                  {isEditing ? (
+                    <Input
+                      className="font-mono"
+                      placeholder="Query token"
+                      {...register(
+                        `sources.${sourceIdx}.queries.${qIdx}.token` as const
+                      )}
+                      aria-invalid={!!queryErrors?.token}
+                    />
+                  ) : (
+                    <Controller
+                      control={control}
+                      name={
+                        `sources.${sourceIdx}.queries.${qIdx}.token` as const
+                      }
+                      render={({ field }) => (
+                        <div className="font-mono text-sm text-zinc-900">
+                          {field.value}
+                        </div>
+                      )}
+                    />
+                  )}
+                  <FieldError message={queryErrors?.token?.message} />
+                </div>
+
+                <label className="flex shrink-0 items-center gap-2 pt-2 text-sm text-zinc-700">
+                  <Controller
+                    control={control}
+                    name={
+                      `sources.${sourceIdx}.queries.${qIdx}.csv` as const
+                    }
+                    render={({ field }) => (
+                      <input
+                        type="checkbox"
+                        className="size-4 rounded border-zinc-300"
+                        disabled={!isEditing}
+                        checked={field.value}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                      />
+                    )}
+                  />
+                  CSV
+                </label>
+
+                {isEditing && queries.fields.length > 1 && (
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    onClick={() => queries.remove(qIdx)}
+                    aria-label={`Remove query ${qIdx + 1}`}
+                  >
+                    <Trash2 />
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+          {isEditing && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="self-start"
+              onClick={() => queries.append({ token: "", csv: false })}
+            >
+              <Plus />
+              Add query
+            </Button>
+          )}
+        </div>
+        <FieldHelp text={FIELD_HELP.query_token} />
+        <FieldHelp text={FIELD_HELP.csv} />
+      </div>
+    </div>
+  );
+}
+
+export function BriefForm({
+  filename,
+  initialBrief,
+  initialSha,
+  loadedAt,
+}: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<FormMode>("view");
   const [sha, setSha] = useState(initialSha);
@@ -99,6 +270,8 @@ export function BriefForm({ filename, initialBrief, initialSha, loadedAt }: Prop
     resolver: zodResolver(formSchema),
     defaultValues,
   });
+
+  const sources = useFieldArray({ control, name: "sources" });
 
   const isEditing = mode === "edit";
 
@@ -230,96 +403,35 @@ export function BriefForm({ filename, initialBrief, initialSha, loadedAt }: Prop
       <div>
         <Label>Sources</Label>
         <div className="mt-2 flex flex-col gap-3">
-          {brief.sources.map((source, sIdx) => (
-            <div
-              key={sIdx}
-              className="rounded-md border border-zinc-200 bg-white p-4"
-            >
-              <div className="text-xs font-medium text-zinc-500">
-                Source #{sIdx + 1}
-              </div>
-
-              <div className="mt-2">
-                <Label htmlFor={`mode_report_token_${sIdx}`}>
-                  Mode report token
-                </Label>
-                {isEditing ? (
-                  <Input
-                    id={`mode_report_token_${sIdx}`}
-                    className="font-mono"
-                    {...register(`sources.${sIdx}.mode_report_token` as const)}
-                    aria-invalid={
-                      !!errors.sources?.[sIdx]?.mode_report_token
-                    }
-                  />
-                ) : (
-                  <ReadonlyValue mono>{source.mode_report_token}</ReadonlyValue>
-                )}
-                <FieldHelp text={FIELD_HELP.mode_report_token} />
-                <FieldError
-                  message={
-                    errors.sources?.[sIdx]?.mode_report_token?.message
-                  }
-                />
-              </div>
-
-              <div className="mt-4">
-                <Label>Queries</Label>
-                <div className="mt-2 flex flex-col gap-2">
-                  {source.queries.map((query, qIdx) => (
-                    <div
-                      key={qIdx}
-                      className="flex items-start gap-3 rounded-md border border-zinc-100 bg-zinc-50 px-3 py-2"
-                    >
-                      <div className="flex-1">
-                        {isEditing ? (
-                          <Input
-                            className="font-mono"
-                            placeholder="Query token"
-                            {...register(
-                              `sources.${sIdx}.queries.${qIdx}.token` as const
-                            )}
-                            aria-invalid={
-                              !!errors.sources?.[sIdx]?.queries?.[qIdx]?.token
-                            }
-                          />
-                        ) : (
-                          <div className="font-mono text-sm text-zinc-900">
-                            {query.token}
-                          </div>
-                        )}
-                        <FieldError
-                          message={
-                            errors.sources?.[sIdx]?.queries?.[qIdx]?.token
-                              ?.message
-                          }
-                        />
-                      </div>
-
-                      <label className="flex shrink-0 items-center gap-2 pt-2 text-sm text-zinc-700">
-                        <Controller
-                          control={control}
-                          name={`sources.${sIdx}.queries.${qIdx}.csv` as const}
-                          render={({ field }) => (
-                            <input
-                              type="checkbox"
-                              className="size-4 rounded border-zinc-300"
-                              disabled={!isEditing}
-                              checked={field.value}
-                              onChange={(e) => field.onChange(e.target.checked)}
-                            />
-                          )}
-                        />
-                        CSV
-                      </label>
-                    </div>
-                  ))}
-                </div>
-                <FieldHelp text={FIELD_HELP.query_token} />
-                <FieldHelp text={FIELD_HELP.csv} />
-              </div>
-            </div>
+          {sources.fields.map((sourceField, sIdx) => (
+            <SourceCard
+              key={sourceField.id}
+              sourceIdx={sIdx}
+              control={control}
+              register={register}
+              errors={errors}
+              isEditing={isEditing}
+              onRemoveSource={() => sources.remove(sIdx)}
+              canRemoveSource={sources.fields.length > 1}
+            />
           ))}
+          {isEditing && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="self-start"
+              onClick={() =>
+                sources.append({
+                  mode_report_token: "",
+                  queries: [{ token: "", csv: false }],
+                })
+              }
+            >
+              <Plus />
+              Add source
+            </Button>
+          )}
         </div>
       </div>
 
