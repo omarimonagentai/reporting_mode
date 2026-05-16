@@ -141,10 +141,26 @@ T4. Adding the Test button requires extending the platform's GitHub PAT scope to
     3. Pick the runtime mechanism — leaning toward an in-house dictionary now, swappable to `next-intl` later if locale-aware routing / pluralisation / formatted messages become necessary.
     4. Add the second language catalog (likely Spanish or English) and a locale switcher.
     Until that task is completed, all localised copy is the literal Catalan string in its component.
-- **Help-text affordance**: every form field exposes its explanation behind a small **Info icon next to the label**, opened on click via a shadcn Popover. Reason: when always-visible, the descriptions crowded the form visually. (This deviates from the original "no expandable tooltips" stance in this section, kept for history below; the user revised the call after seeing 2.0 live.)
+- **Help-text affordance**: every form field exposes its explanation behind a small **Info icon next to the label**. Hover (or keyboard focus) opens a shadcn Tooltip with the help text; on touch devices a tap toggles it. Originally implemented as a click-triggered shadcn Popover during 2.0; switched to Tooltip after user feedback that the icon felt empty on hover. Reason for hiding the help in the first place: when always-visible, the descriptions crowded the form visually. (Deviates from the original "no expandable tooltips" stance below, kept for history; the user revised the call after seeing 2.0 live.)
+- **Form layout: Brief Name above, Inputs section, Outputs section.** The detail view is structured as a single `Brief Name` field at the top (the brief's identity), followed by two bordered cards:
+  - **Inputs** card — what the LLM ingests: the list of `Sources` (each one a Mode report plus its queries) and the `Prompt`.
+  - **Outputs** card — when and where the brief is published: `Schedule`, `Time Zone`, `Slack Channel`.
+  This grouping was added after 2.0 user review to give users a mental model of the brief lifecycle (data in → LLM → message out) before they read any individual field.
+- **Canonical UI labels** (the chrome strings that appear on screen and that support / documentation must reference; the corresponding YAML keys are shown in parens — see §4.6 for the structural data model):
+  - Brief Name (`name`)
+  - Schedule (`schedule`)
+  - Time Zone (`timezone`)
+  - Slack Channel (`slack_channel`)
+  - Sources (`sources[]`)
+  - Mode report (`sources[].mode_report_token` — the "token" suffix is dropped from the label because it was jargon)
+  - Queries (`sources[].queries[]`)
+  - Query token (`sources[].queries[].token`)
+  - CSV (`sources[].queries[].csv`)
+  - Prompt (`prompt`)
+  Schedule is shown without the "(cron)" suffix it carried during 2.0 — non-technical users were bouncing off the field. The cron syntax stays the internal representation but is no longer surfaced in the label. The visual builder (task 3.0) makes the syntax irrelevant to the user.
 - **Visual language**: continue with shadcn/ui aesthetic already established in the static dashboard (zinc palette, Inter font, JetBrains Mono for code/tokens, generous padding, subtle borders, rounded-lg). Reuse the design tokens.
 - **Sidebar width**: ~280px on desktop. On screens narrower than `lg` (1024px), the sidebar collapses to a hamburger menu.
-- ~~**Form fields with inline help**: each field renders as `<Label> + <Input> + <description below in small muted text>`. No expandable tooltips at first — just always-visible muted text. PLG philosophy: zero friction, zero hidden info.~~ Superseded by the "Help-text affordance" bullet above (Info-icon Popover) after 2.0 user review.
+- ~~**Form fields with inline help**: each field renders as `<Label> + <Input> + <description below in small muted text>`. No expandable tooltips at first — just always-visible muted text. PLG philosophy: zero friction, zero hidden info.~~ Superseded by the "Help-text affordance" bullet above (Info-icon Tooltip) after 2.0 user review.
 - **Cron visual builder**: standalone component, ~400px wide, with three sections: "Quan" (frequency: radio buttons), "A quina hora" (time picker, 15-min increments), "Zona horària" (dropdown defaulting to `Europe/Madrid`). A live preview below shows the human-readable schedule (e.g. "Cada dimarts a les 10:00 (Europe/Madrid)") and, in muted font, the generated cron expression.
 - **Slack channel selector**: shadcn/ui `Combobox` pattern — a button that opens a popover with a searchable list. Public channels show with a `#` icon; private channels show with a `🔒` icon. Channel names rendered in `font-mono` to match Slack's own visual convention. Empty state when the bot is in zero channels: a friendly message + the `/invite @<bot-name>` snippet.
 - **"Bot not in channel" warning**: renders below the channel field as a shadcn/ui `Alert` (warning variant — yellow/amber, not red, because the situation is recoverable). Inside: one line of explanation + a code block with the `/invite` snippet + a small "Copy" button that triggers a transient "Copiat!" toast. A subtle "Refresh channels" link to re-query the list after the user invites the bot.
@@ -170,8 +186,13 @@ T4. Adding the Test button requires extending the platform's GitHub PAT scope to
   - `DELETE /api/briefs/[name]`: deletes a brief.
   - `GET /api/runs/[brief]`: returns the latest execution metadata from GitHub Actions artifacts.
   - `GET /api/version`: returns the latest commit sha, subject, and timestamp.
-- **GitHub authentication**: a service GitHub App or PAT stored in Vercel environment variables. The PAT scopes: `contents:write` on this repository only.
+- **GitHub authentication**: a service GitHub App or PAT stored in Vercel environment variables. The PAT scopes: `contents:write` on this repository (plus `actions:write` once task 6.0 lands for the Test-run button).
   - *Note*: never expose this PAT client-side. All GitHub API calls go through the server.
+
+### Next.js caching (server tree consistency)
+- The root `app/layout.tsx` is marked `export const dynamic = "force-dynamic"`. The sidebar is a Server Component that fetches the brief list directly via `lib/briefs.ts:getBriefList()`; without `force-dynamic`, Next 16's auto-detection was leaving the layout statically rendered and the sidebar's RSC payload survived across mutations, so renaming or deleting a brief wouldn't reflect in the list until a full reload.
+- Every mutation endpoint (`POST /api/briefs`, `PUT /api/briefs/[name]`, `DELETE /api/briefs/[name]`) MUST call `revalidatePath("/", "layout")` right after the GitHub commit lands, so the next `router.refresh()` from the client renders a fresh sidebar. Any future endpoint that mutates a brief MUST follow the same pattern (e.g., task 6.0's Test dispatch does NOT need this — it doesn't change YAML — but a future "duplicate brief" or "rename brief" endpoint would).
+- `lib/github.ts:ghFetch` sets `cache: "no-store"` on every GitHub API call so the Data Cache layer is opted out too. This is belt-and-suspenders alongside `revalidatePath`.
 
 ### Slack channel discovery
 - New API endpoint `GET /api/channels`: server-side calls Slack `conversations.list` with `types=public_channel,private_channel`, filters where `is_member: true`, and returns `[{name, is_private}]`. Strips out everything else.
