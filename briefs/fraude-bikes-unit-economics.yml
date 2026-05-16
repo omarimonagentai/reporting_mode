@@ -4,7 +4,7 @@ slack_channel: test-github-oriol
 sources:
   - mode_report_token: 3c6ce1fafa97
     queries:
-      - token: c9ab8392aad6
+      - token: c9ab8392aad5
         csv: true
       - token: 0f1ea51d4f3b
         csv: true
