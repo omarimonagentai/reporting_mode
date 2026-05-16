@@ -19,7 +19,7 @@ export type RunLookup =
     }
   | { kind: "never-run" };
 
-type Artifact = {
+export type Artifact = {
   id: number;
   name: string;
   created_at: string;
@@ -40,7 +40,7 @@ function getConfig() {
   return { owner, repo, token };
 }
 
-async function listArtifacts(): Promise<Artifact[]> {
+export async function listArtifacts(): Promise<Artifact[]> {
   const { owner, repo, token } = getConfig();
   // First page only (max 100). Most-recent-first sort means the latest
   // run.json for any brief is almost certainly within the first page.
@@ -65,7 +65,7 @@ async function listArtifacts(): Promise<Artifact[]> {
   return data.artifacts;
 }
 
-async function downloadZip(artifact: Artifact): Promise<JSZip | null> {
+export async function downloadZip(artifact: Artifact): Promise<JSZip | null> {
   const { owner, repo, token } = getConfig();
   const res = await fetch(
     `${GITHUB_API}/repos/${owner}/${repo}/actions/artifacts/${artifact.id}/zip`,

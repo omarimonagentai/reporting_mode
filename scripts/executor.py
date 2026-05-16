@@ -411,6 +411,24 @@ def post_brief_to_slack(brief, sources_data, brief_text):
 
 
 def save_artifacts(brief, brief_path, sources_data, brief_text):
+    """Persist the per-execution artifacts under out/.
+
+    Writes two files keyed by the same filename slug used for the run
+    record:
+
+    - `<slug>.raw.json` — the structured snapshot of Mode data that fed
+      the LLM (queries + report metadata). Useful for debugging or
+      re-deriving the brief without re-fetching Mode.
+    - `<slug>.brief.md` — the **raw GROQ output** in markdown, before
+      `markdown_to_slack()` conversion. This is what the web app's
+      `GET /api/briefs/[name]/outputs` endpoint surfaces so users can
+      read past brief outputs without opening Slack.
+
+    The workflows (`run-brief.yml`, `run-due-briefs.yml`) upload both
+    files (and `<slug>.run.json` written by `write_run_record`) as a
+    single artifact. The caller in `main()` invokes this best-effort:
+    a write failure is logged and the Slack post continues.
+    """
     OUT_DIR.mkdir(exist_ok=True)
     slug = brief_slug_from_path(brief_path)
     raw = {
@@ -510,7 +528,17 @@ def main():
             f"total={usage['total']}"
         )
 
-        save_artifacts(brief, brief_path, sources_data, brief_text)
+        # Best-effort: a write failure here (disk full, permissions) must
+        # NOT block the Slack post. The .run.json record continues to be
+        # written by the finally block regardless.
+        try:
+            save_artifacts(brief, brief_path, sources_data, brief_text)
+        except Exception as artifact_err:
+            print(
+                f"   WARNING: no s'han pogut desar els artifacts d'output "
+                f"({type(artifact_err).__name__}: {artifact_err}). "
+                f"Continuant amb el Slack post."
+            )
 
         print("")
         print("=" * 70)

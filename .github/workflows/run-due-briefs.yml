@@ -43,11 +43,16 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: python scripts/due_runner.py
 
-      - name: Upload run records
+      - name: Upload run records + brief outputs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: runs-due-${{ steps.ts.outputs.value }}-${{ github.run_id }}
-          path: out/*.run.json
+          # A single scheduler tick can fire multiple briefs; both the
+          # per-execution status (<slug>.run.json) and the raw GROQ
+          # markdown (<slug>.brief.md) for each are packaged here.
+          path: |
+            out/*.run.json
+            out/*.brief.md
           retention-days: 90
           if-no-files-found: ignore
