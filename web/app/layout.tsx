@@ -37,7 +37,15 @@ export default function RootLayout({
         <div className="flex min-h-screen">
           <aside className="w-[280px] shrink-0 border-r border-zinc-200 bg-white flex flex-col">
             <div className="flex-1 overflow-y-auto">
-              <BriefSidebar />
+              <Suspense
+                fallback={
+                  <div className="px-4 py-4 text-xs text-zinc-400">
+                    Loading briefs…
+                  </div>
+                }
+              >
+                <BriefSidebar />
+              </Suspense>
             </div>
             <Suspense
               fallback={
