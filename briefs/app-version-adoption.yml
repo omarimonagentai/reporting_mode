@@ -1,6 +1,7 @@
 name: App Version Adoption 2 CH00
 schedule: 0 * * * *
 slack_channel: test-github-oriol
+reference_link: https://omarimonagentai.github.io/cajut/?ctrl=pulse-presenter-7k2mq
 sources:
   - mode_report_token: 7b89f8a2f8d8
     queries:
