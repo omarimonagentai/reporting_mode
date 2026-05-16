@@ -1,4 +1,4 @@
-name: App Version Adoption 2 1600
+name: App Version Adoption 2 CH00
 schedule: 0 * * * *
 slack_channel: test-github-oriol
 sources:
