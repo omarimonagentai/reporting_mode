@@ -7,6 +7,9 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
 - **No conflict detection** for concurrent edits — last-write-wins, with a small "loaded at HH:MM" indicator in the form so the user knows their baseline.
 - **Channel-list refresh by polling** (every 5 min via stale-while-revalidate), no explicit refresh button.
 - **Desktop only**. Mobile may render but is not designed for; forms and views assume ≥ 1024px width.
+- **Language policy** (added 2026-05-16): UI chrome (field labels, buttons, navigation entries, page headings, status badges) is in **English** and is shared vocabulary across teams. Narrative copy (help text, validation errors, toasts, dialog bodies, loading/empty/error states) is **localised to Catalan** by default; when narrative copy references chrome, the chrome term stays English in line (e.g. «El _Slack channel_ és obligatori»). Multi-language is not implemented; the placement of localised strings must allow swapping to a second language without component-by-component edits.
+- **Help-text affordance** (added 2026-05-16): each form field exposes its description behind an Info-icon Popover next to the label, not as always-visible muted text (a deviation from the original PRD design line, kept for history in the PRD).
+- **Manual runs** (added 2026-05-16, future task 6.0): every brief detail view gets a prominent **Run Now** button at the top of the form that fires `workflow_dispatch` on `run-brief.yml`, with a 2-minute cooldown enforced both client- and server-side. On the new-brief page the button is rendered but disabled with an explanatory hint until the brief has been saved.
 
 ## Relevant Files
 
@@ -68,8 +71,8 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
 - [x] **1.0 Project foundation: Next.js + Vercel + layout shell** ✅
   - [x] 1.1 Initialised under `web/` via `npx create-next-app@latest . --typescript --tailwind --app --no-src-dir --yes`. **Note:** scaffolded **Next.js 16.2.6 + React 19.2 + Tailwind v4** (not Next 14 as the PRD assumed). v16 brings async `params`/`searchParams` and renames `middleware` → `proxy` — relevant later, not for 1.0.
   - [x] 1.2 Tailwind v4 deprecates `tailwind.config.js`; theme tokens go inside `web/app/globals.css` under `@theme`. Done there: zinc-based palette + Inter / JetBrains Mono fonts wired via `next/font/google` in `app/layout.tsx`.
-  - [ ] 1.3 **Deferred to start of 2.0.** Reason: `shadcn init` rewrites `globals.css` with its own `oklch` theme, which would clobber the zinc/Inter setup. We don't consume any shadcn component until 2.0 (the `+ New brief` button is the first), so initialising then is cleaner.
-  - [ ] 1.4 **Deferred to start of 2.0** (same reason as 1.3).
+  - [x] 1.3 Done at the start of 2.0: `npx shadcn@latest init -t next -b radix -p nova`. The preset rewrote `globals.css` with the oklch palette and tried to inject Geist as `--font-sans`; reverted the font swap so Inter stays as `--font-sans` (the literal `--color-background: #fafafa` survived the rewrite, so the zinc backdrop is intact). `tw-animate-css` and Lucide icons came in as transitive deps.
+  - [x] 1.4 Done at the start of 2.0: `npx shadcn@latest add button input textarea label dialog sonner`. The 2.0 polish pass added `popover` (initial Info-icon affordance) and then `tooltip` (the hover-based replacement that now hosts the help text); `popover` stays installed for task 3.10's ChannelCombobox.
   - [x] 1.5 Vercel project `reporting-mode` created under "Oriol's projects"; connected to GitHub repo; Root Directory = `web`; Framework Preset = Next.js; Production branch = `main`; previews enabled for every branch.
   - [x] 1.6 Env vars added in Vercel (Production + Preview, encrypted): `GITHUB_TOKEN` (fine-grained PAT `vercel-reporting-mode`, expires 2027-05-16, scoped to `reporting_mode` with `Contents: Read & write` + `Metadata: Read-only`), `GITHUB_REPO_OWNER`, `GITHUB_REPO_NAME`, `SLACK_BOT_TOKEN` (placeholder until 3.0).
   - [x] 1.7 `web/app/layout.tsx`: persistent left sidebar (~280px width) and main content area. Sidebar is a flex column with placeholder content on top and the Footer pinned to the bottom (deviated from the original "footer bottom-right of main" spec — see 1.10).
@@ -88,29 +91,58 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     Uses ISR with `revalidate: 60` so the footer updates roughly once a minute.
   - [x] 1.11 Verified on production URL `https://reporting-mode.vercel.app/`: shell + sidebar placeholder + footer with real SHA and Catalunya time all render.
 
-- [ ] **2.0 Brief CRUD: read, edit, create, delete**
-  - [ ] 2.1 Implement `web/lib/github.ts` with helpers: `listBriefs()`, `readBrief(name)`, `writeBrief(name, content, sha?)`, `deleteBrief(name, sha)`. All use the GitHub Contents API and run server-side only.
-  - [ ] 2.2 Implement `web/lib/yaml.ts`: parse a brief YAML string to a typed object; serialise back to YAML keeping a stable key order so diffs in git remain readable.
-  - [ ] 2.3 Implement `web/lib/schemas.ts`: a zod schema mirroring the brief structure (name, schedule, timezone, slack_channel, sources[], prompt, optional owner_email).
-  - [ ] 2.4 Implement `web/app/api/briefs/route.ts` `GET`: returns `[{name, schedule, slack_channel, source_count, query_count, sha}]` for every brief in the repo.
-  - [ ] 2.5 Implement `web/app/api/briefs/[name]/route.ts` `GET`: returns the full parsed brief plus its SHA.
-  - [ ] 2.6 Implement `web/components/BriefSidebar.tsx`: client component that fetches `/api/briefs` and renders each brief as a clickable item (just the name for now; execution data added in 4.7).
-  - [ ] 2.7 Above the sidebar list, render the `+ New brief` button (shadcn Button, primary variant) linking to `/briefs/new`.
-  - [ ] 2.8 Implement `web/app/briefs/[name]/page.tsx`: server component that fetches the brief by name and passes it to `BriefForm` in read-only mode.
-  - [ ] 2.9 Implement `web/components/BriefForm.tsx`: renders all brief fields with always-visible inline help text below each field; supports `mode="view" | "edit" | "create"`.
-  - [ ] 2.10 In view mode, each field is a read-only display; in edit mode, fields become inputs/textareas. The `prompt` field is a `<Textarea>` sized to ~20 visible rows with monospace font.
-  - [ ] 2.11 Wire react-hook-form + zod to the form. Validation errors render below each field in red, replacing the inline help text temporarily.
-  - [ ] 2.12 Add an "Edit" button that toggles `mode` from view to edit; "Cancel" reverts; "Save" calls `PUT /api/briefs/[name]`.
-  - [ ] 2.13 Above the form, render a small muted "Carregat a HH:MM" indicator (the timestamp when the page loaded). Helps users notice if they came back to an old tab.
-  - [ ] 2.14 Implement `web/app/api/briefs/[name]/route.ts` `PUT`: receives parsed brief JSON, serialises to YAML, commits via GitHub API with author = service identity, message = `Update brief: <name>`.
-  - [ ] 2.15 On successful save, show a shadcn `Toast` with "Brief desat" and revert the form to view mode.
-  - [ ] 2.16 Implement `web/app/briefs/new/page.tsx`: renders `BriefForm` in `mode="create"` with empty defaults (name="", schedule="0 8 * * *", timezone="Europe/Madrid", one empty source, prompt="").
-  - [ ] 2.17 Implement `web/app/api/briefs/route.ts` `POST`: receives parsed brief JSON, infers filename from the `name` field (slugified), commits a new YAML file. Rejects if a file with that name already exists.
-  - [ ] 2.18 Add "Delete brief" button on the brief detail view (in view mode, secondary destructive variant, bottom of the form). Clicking opens a shadcn `Dialog` asking to confirm.
-  - [ ] 2.19 Implement `web/app/api/briefs/[name]/route.ts` `DELETE`: removes the file via GitHub API; after success, navigate to home and refresh the sidebar.
-  - [ ] 2.20 In the form, allow adding and removing `sources` dynamically: each source is a card; "+ Add source" appends; trash icon on the card removes.
-  - [ ] 2.21 Within each source card, allow adding and removing `queries` dynamically: each query is a row with the query token field and a per-query CSV checkbox (per the new schema).
-  - [ ] 2.22 Write inline help text for every field (name, schedule, timezone, slack_channel, mode_report_token, query token, csv, prompt). PLG style: what the field is, expected format, and a concrete example.
+- [x] **2.0 Brief CRUD: read, edit, create, delete** ✅
+  - [x] 2.1 `web/lib/github.ts` — `listBriefs / readBrief / writeBrief / deleteBrief` over the GitHub Contents API, commits authored as the Cooltra Reporting Bot service identity. Typed `BriefNotFoundError` / `BriefAlreadyExistsError` for distinguished 404/409.
+  - [x] 2.2 `web/lib/yaml.ts` — `parseBrief` accepts both the legacy shape (queries as bare strings + brief-level `csv`) and the canonical shape, normalising to the new `{token, csv}` layout (Option A from the schema-migration discussion). `serializeBrief` emits the canonical shape with a fixed key order. `slugifyBriefName` derives the filename from the name.
+  - [x] 2.3 `web/lib/schemas.ts` — zod schemas for query / source / brief plus a small `BriefListItem` row type for the list endpoint. `csv` and `timezone` are required (no `.default()`) so the RHF input/output types match.
+  - [x] 2.4 `GET /api/briefs` returns `{briefs: BriefListItem[]}`, sorted by name (`ca` collation); briefs that fail to parse are skipped and logged server-side.
+  - [x] 2.5 `GET /api/briefs/[name]` returns `{brief, sha}`; 404 when the file doesn't exist.
+  - [x] 2.6 `BriefSidebar` (client component) fetches `/api/briefs` and renders each brief as a `Link`, highlighting the active one via `useParams`. (No execution badge yet — lands in 4.8.)
+  - [x] 2.7 `+ New brief` button (shadcn primary, `size="sm"`, full-width) sits above the list and links to `/briefs/new`.
+  - [x] 2.8 `web/app/briefs/[name]/page.tsx` is a server component that reads + parses the brief, renders the title/filename header, and mounts `BriefForm` with `loadedAt = new Date().toISOString()` so the client can render the indicator.
+  - [x] 2.9 `BriefForm` (client) handles every field with always-visible muted help text below; the new-brief flow shares the same component via `intent="create"`.
+  - [x] 2.10 View mode renders each field as a read-only zinc-50 box; edit swaps in `<Input>` / `<Textarea>`. Prompt is 20 rows monospace in edit mode and a wrapped `<pre>` (max-h 40rem, scrollable) in view mode.
+  - [x] 2.11 react-hook-form + zod via `zodResolver(briefSchema)`. Validation errors render in `text-red-600` below each field; help text stays underneath rather than being replaced.
+  - [x] 2.12 Edit button toggles to edit; Cancel calls `reset(brief)` + back to view; Save fires `PUT /api/briefs/[name]`.
+  - [x] 2.13 "Carregat a HH:MM" (Catalunya tz) is rendered above the form; in create mode that line becomes "Nou brief".
+  - [x] 2.14 `PUT /api/briefs/[name]` validates with zod, serialises via `serializeBrief`, commits with the prior sha (optimistic concurrency surfaced from GitHub's 409 path if the sha is stale).
+  - [x] 2.15 Successful save toasts "Brief desat" via sonner, resets the form to the new values, swaps back to view mode, and calls `router.refresh()` so the sidebar picks up renamed briefs.
+  - [x] 2.16 `web/app/briefs/new/page.tsx` mounts `BriefForm intent="create"` with the spec'd empty defaults (schedule `"0 8 * * *"`, timezone `Europe/Madrid`, one empty source with one empty query).
+  - [x] 2.17 `POST /api/briefs` slugifies the brief name and rejects with 409 when a brief with that filename already exists (via `BriefAlreadyExistsError` from GitHub's 422). Rejects with 400 when the slug is empty.
+  - [x] 2.18 "Delete brief" button (destructive variant, with `Trash2` icon) sits at the bottom of the form in view mode and opens a shadcn Dialog confirmation.
+  - [x] 2.19 `DELETE /api/briefs/[name]` removes the file via the Contents API using the current sha; on success the client toasts, pushes `/`, and refreshes.
+  - [x] 2.20 Sources live in `useFieldArray({name: "sources"})`. Edit mode shows a `+ Add source` button + a trash icon per card (hidden when only one source remains).
+  - [x] 2.21 Queries live in a nested `useFieldArray` inside `<SourceCard>`. `+ Add query` appends `{token: "", csv: false}`; trash removes (hidden when only one query remains). The CSV checkbox is wired via `Controller`.
+  - [x] 2.22 Help text rewritten in the PLG template (what / format / example) across every field. Removed internal references to future tasks from the visible copy.
+  - [x] **2.23 (post-2.0 fix-ups, applied 2026-05-16 after user review)**
+    - **Sidebar refresh (round 1)**: `BriefSidebar` was a Client Component that fetched `/api/briefs` in a one-shot `useEffect`, so renaming a brief and saving didn't update the sidebar entry. Refactored to a Server Component reading `getBriefList()` directly (new `web/lib/briefs.ts`), with the active-item highlighting delegated to a tiny `BriefSidebarList` client component using `usePathname()`.
+    - **Sidebar refresh (round 2)**: round 1 wasn't enough — the layout was still being statically rendered (`/` and `/briefs/new` showed up as `○` in the build output), so the RSC payload for the sidebar survived across mutations. Two-part fix that now lands the canonical pattern for any future brief-mutation endpoint:
+      1. `export const dynamic = "force-dynamic"` on `app/layout.tsx`. All routes are `ƒ` (dynamic) now; the cost is negligible because the home page and `/briefs/new` are trivial.
+      2. `revalidatePath("/", "layout")` called inside `POST /api/briefs`, `PUT /api/briefs/[name]`, and `DELETE /api/briefs/[name]` right after the GitHub commit lands. Any future endpoint that writes a brief MUST follow the same pattern.
+    - **Info-icon help — Popover then Tooltip**: replaced the always-visible muted help text with an Info-icon affordance next to each Label (added the `popover` shadcn primitive). First implementation used Popover (click-to-open); after user feedback that the icon felt empty on hover, swapped to Tooltip (added the `tooltip` shadcn primitive) with the same content. `TooltipProvider` wraps the body in `layout.tsx`. The `popover` primitive stays in the repo because task 3.10 (ChannelCombobox) is documented to use Command + Popover.
+    - **Field renames + Inputs/Outputs grouping** (UI vocabulary; YAML keys unchanged for executor compatibility):
+      - `Name` → `Brief Name`
+      - `Mode report token` → `Mode report` (drops jargon suffix)
+      - `Schedule (cron)` → `Schedule` (the "(cron)" suffix scared non-technical users away)
+      - `Timezone` → `Time Zone`
+      - `Slack channel` → `Slack Channel`
+      - Form body restructured: `Brief Name` at the top, then an **Inputs** card (Sources + Prompt), then an **Outputs** card (Schedule + Time Zone + Slack Channel). Each card has a small uppercase title in muted zinc. See the new "Form layout" + "Canonical UI labels" bullets in PRD §6.
+      - zod validation messages updated to reflect the new chrome names: «El **Brief Name** és obligatori», «El **Mode report** és obligatori», «La **Time Zone** és obligatòria», «El **Slack Channel** és obligatori».
+    - **Language policy**: enforced the criterion documented in the "Scope" block above:
+      - zod validation messages in Catalan with chrome terms in English.
+      - Button-state labels Anglicised: «Desant…» → "Saving…", «Creant…» → "Creating…", «Esborrant…» → "Deleting…", dialog «Esborrar brief?» → "Delete brief?".
+      - Narrative kept Catalan: dialog description, toasts ("Brief desat" / "Brief creat" / "Brief esborrat" / error toasts), `Carregat a HH:MM`, `Nou brief`, sidebar empty state, footer fallback `Versió no disponible`, layout suspense fallbacks (`Carregant briefs…`, `Carregant versió…`).
+    - **Submit gate on invalid form** (Option B from the UX discussion): `useForm` runs with `mode: "onChange"` plus a `trigger()` on mount so `isValid` is correct from the first render. The Save/Create button is disabled when `!isValid`, and a small muted hint appears below the action row in edit mode explaining what to fix: «Omple els camps obligatoris per crear el brief.» (create) / «Hi ha camps obligatoris buits o invàlids; revisa els avisos en vermell.» (edit). Fixes the case where an empty New-brief form had Create looking actionable.
+    - **Delete dialog references Brief Name, not filename**: the confirmation prose now reads «Vols esborrar el brief «<Brief Name>»?» using the human-readable name. The YAML slug is no longer surfaced to the user at confirmation time.
+
+  - [x] **2.24 (extra post-2.0 polish landing 2026-05-16)**
+    - **Asterisks for required + lazy error display**: form fields marked obligatory show a red `*` next to the label. Validation still runs continuously (RHF mode `onChange` + `trigger()` on mount) so `isValid` drives the disabled Save/Create button, but `aria-invalid` and the inline FieldError are gated on `(touchedFields[name] || isSubmitted)` via a new `shouldShowError(name)` predicate (powered by a `touchedAtPath` walker that handles nested arrays like `sources.0.queries.1.token`). Effect: opening New-brief is clean — asterisks, disabled Create, no red noise — and red feedback only appears once the user has interacted with a field.
+    - **Time Zone removed**: company runs in a single TZ, so the per-brief field was noise.
+      - Web: `Time Zone` input removed from the Outputs section; Schedule's «i» tooltip now states the schedule is interpreted in Catalunya local time.
+      - Schema: `timezone` removed from `briefSchema`; `parseBrief` no longer sets it; `serializeBrief` no longer emits it; `EMPTY_BRIEF` updated.
+      - Python: `due_runner.py` introduces a `SCHEDULE_TZ = "Europe/Madrid"` constant; `resolve_tz` falls back to it; `cfg.get("timezone")` is no longer read.
+      - YAMLs: both fixtures lost their `timezone:` field (the briefs are dummy fixtures so the resulting time shift for `fraude-bikes` has no production impact).
+    - **Tasks 5.1–5.3 closed as part of this commit** (CSV-per-query in executor + YAML migrations). The user confirmed the existing briefs are dummy fixtures, so doing the migration alongside the TZ change was safer than keeping two schemas in flight.
 
 - [ ] **3.0 Specialised form widgets: cron visual builder + Slack channel combobox**
   - [ ] 3.1 Implement `web/lib/cron.ts`: a `buildCron(state)` function that takes `{frequency, days, hour, minute}` and returns a canonical 5-field cron string; an inverse `parseCron(cron)` that returns the state or `null` when the cron doesn't fit the grid.
@@ -149,9 +181,9 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - **API failure** — show "No s'ha pogut carregar la informació d'execució" with a retry button.
 
 - [ ] **5.0 List-calendar + schema migration + polish + retire static dashboard**
-  - [ ] 5.1 Update `scripts/executor.py` to read `csv` from each query (`source["queries"][i]["csv"]`) instead of from the brief root. Keep backward-compat by treating missing `csv` field as `false`.
-  - [ ] 5.2 Migrate `briefs/fraude-bikes-unit-economics.yml`: convert each query from `{token, csv}` shorthand to the new structure (both queries get `csv: true`).
-  - [ ] 5.3 Migrate `briefs/app-version-adoption.yml`: convert the single query to the new structure with `csv: true`.
+  - [x] 5.1 Done as part of the timezone removal (commit 714219b). `scripts/executor.py` now reads `csv` from each query: `fetch_source` returns a `csv_by_name` mapping; `post_brief_to_slack` filters per-query before uploading. Bare-string queries still accepted and treated as `csv: false`.
+  - [x] 5.2 Done in the same commit. `briefs/fraude-bikes-unit-economics.yml` migrated: brief-level `csv: true` removed; both queries converted to `{token, csv: true}`.
+  - [x] 5.3 Done in the same commit. `briefs/app-version-adoption.yml` migrated: brief-level `csv: true` removed; the single query converted to `{token, csv: true}`. `timezone:` also dropped (see 2.24 for the company-wide TZ change).
   - [ ] 5.4 Manually trigger both briefs via the `Run brief` workflow on the feature branch's Vercel preview deployment URL; verify the Slack message + CSV thread reply still arrive correctly.
   - [ ] 5.5 Implement `web/app/schedule/page.tsx`: server component that fetches `/api/briefs`, computes each brief's next fire time (using a JS cron library like `cron-parser`), and renders a sorted table.
   - [ ] 5.6 Table columns: brief name (clickable, navigates to detail), next fire (relative: "en 3h" + absolute: "16:00 dl 16/05"), schedule humanized, last run status icon.
@@ -171,3 +203,23 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     5. Manually trigger via GitHub Actions `Run brief` workflow → verify execution metadata appears in the UI within 5 minutes.
     6. Delete the test brief → confirm it disappears from the sidebar and `/schedule`.
   - [ ] 5.16 Open the final PR (`feature/online-brief-platform` → `main`); after merge, switch Vercel's Production branch to `main`; verify the production URL serves the platform.
+
+- [ ] **6.0 Manual brief runs ("Run Now" button)** (new, added 2026-05-16 after user feedback; revised 2026-05-16 to rename Test → Run Now, move to the top of the form, and render disabled-with-hint on the new-brief page instead of hidden)
+  - [ ] 6.1 **User action (cannot be coded)**: extend the existing `vercel-reporting-mode` PAT to include `Actions: Read & write` in addition to `Contents: Read & write` + `Metadata: Read-only`. Update the token value in Vercel (Production + Preview).
+  - [ ] 6.2 Implement `web/lib/dispatch.ts` with `dispatchBriefRun(filename)`: calls `POST /repos/{owner}/{repo}/actions/workflows/run-brief.yml/dispatches` with `{ref: "main", inputs: {brief: filename}}`. Returns the workflow run URL when GitHub exposes one (otherwise the workflow's HTML URL).
+  - [ ] 6.3 Implement `POST /api/briefs/[name]/run`: verifies the brief exists, enforces a 2-minute cooldown via a module-level `Map<filename, lastDispatchedAtMs>` (rejects with 429 + `{retry_after_seconds}` when violated), then calls `dispatchBriefRun`. (Endpoint path uses `/run` to match the UI label, not `/test`.)
+  - [ ] 6.4 Implement `web/components/RunNowButton.tsx` (client): shadcn Button with a Play icon labelled "Run Now". The button is **always rendered** on the brief detail view; the disabled state is conditional:
+    - **Disabled when in create mode** (no brief saved yet). The disabled state MUST show a Tooltip on hover/focus: «Crea el brief abans de poder executar-lo.» (chrome + Catalan narrative per the language policy).
+    - **Disabled during cooldown** after a successful dispatch (120s). Label changes to `Run Now — torna a provar en 1:42` with a live countdown; deadline persisted to `localStorage` keyed by filename so reloads don't reset it.
+    - **Disabled during the in-flight POST** (label `Running…`).
+    - **Enabled** otherwise: on click POST `/api/briefs/[name]/run`; on success toast a confirmation with the workflow URL when available and start the cooldown.
+  - [ ] 6.5 Brief detail view / new-brief page: mount `RunNowButton` at the **top of the form**, above the Brief Name field, as the most prominent action. On the existing-brief detail view it's enabled (subject to cooldown); on `/briefs/new` it's rendered but disabled with the explanatory tooltip (per 6.4). It MUST NOT be hidden.
+  - [ ] 6.6 Manual verification on the Vercel preview: open `/briefs/new` → confirm Run Now is visible but disabled with the tooltip; save the brief → navigate to its detail page → confirm Run Now is enabled; click it → confirm the workflow appears in the GitHub Actions tab, the Slack message arrives, and the second-press-within-2min is blocked by both UI countdown and server 429.
+
+- [ ] **7.0 Multi-language support** (new, added 2026-05-16, confirmed future requirement — implementation deferred)
+  - [ ] 7.1 Inventory every Catalan string in `web/`: zod messages in `lib/schemas.ts`, `FIELD_HELP` map in `BriefForm.tsx`, toast strings (`Brief desat` / `Brief creat` / `Brief esborrat` / error toasts), dialog body and title strings, button-state labels that happen to be Catalan ("Saving…", etc. should stay English per the language policy, but verify), Suspense fallback strings, sidebar loading/empty/error strings, Footer fallback. Produce a single audit document listing key + location + literal.
+  - [ ] 7.2 Decision: in-house dictionary (`web/lib/i18n/<locale>.ts` + a small `t(key)` helper) vs. `next-intl`. Default recommendation: in-house dictionary for the first two locales; reconsider `next-intl` if locale-aware routing or ICU message formatting is needed. Document the choice in the PRD before implementing.
+  - [ ] 7.3 Implement the chosen mechanism: create the dictionary files (start with `ca.ts` carrying everything from 7.1; leave `<second-locale>.ts` empty or stub-translated). Replace every literal occurrence with `t(key)`. The chrome strings (English labels / buttons / headings) stay literal and are NOT routed through `t()` — they're the policy's invariant.
+  - [ ] 7.4 Add the second-locale catalog (likely `es.ts` for Castilian Spanish or `en.ts`; confirm with the user before translating).
+  - [ ] 7.5 Add a locale switcher: a small dropdown in the sidebar footer or settings. Persist the choice in a cookie so the server can pick the right catalog on first paint.
+  - [ ] 7.6 Verify on the Vercel preview: every localised string switches when the locale changes; chrome stays English in all locales; the «El _Slack channel_ és obligatori» / «El _Slack channel_ es obligatorio» / "_Slack channel_ is required" pattern works in all three.

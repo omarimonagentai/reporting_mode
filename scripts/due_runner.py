@@ -9,9 +9,9 @@ Each brief runs as a subprocess so failures are isolated: one brief crashing
 does not stop the others. If any brief fails, this script exits non-zero so
 the GitHub Actions workflow shows a red status (visibility).
 
-TIME ZONE: each brief can declare a `timezone:` field (IANA name, e.g.
-"Europe/Madrid"). The cron expression is then interpreted in that timezone,
-with automatic DST handling. If omitted, cron is interpreted as UTC.
+TIME ZONE: every brief is interpreted in the company-wide TZ
+(SCHEDULE_TZ, hardcoded below). Brief YAMLs no longer carry a
+`timezone:` field; if present it is ignored.
 
 Usage:
     python scripts/due_runner.py
@@ -30,6 +30,11 @@ from croniter import croniter
 # - missed executions (window < interval would skip briefs that fire between ticks)
 WINDOW_SECONDS = 15 * 60
 
+# Single company-wide timezone: every brief schedule is interpreted in
+# Catalunya local time (IANA Europe/Madrid). The YAML no longer carries a
+# per-brief timezone field.
+SCHEDULE_TZ = "Europe/Madrid"
+
 BRIEFS_DIR = Path(__file__).resolve().parent.parent / "briefs"
 EXECUTOR = Path(__file__).resolve().parent / "executor.py"
 
@@ -41,19 +46,21 @@ def find_briefs():
 
 
 def resolve_tz(tz_name):
-    """Return a tzinfo. Defaults to UTC; rejects invalid names with a clear error."""
-    if not tz_name or tz_name == "UTC":
-        return timezone.utc
+    """Return a tzinfo for `tz_name`, falling back to the hardcoded
+    SCHEDULE_TZ when missing or invalid. Kept as a function so future
+    per-brief overrides can plug back in without touching is_due().
+    """
+    name = tz_name or SCHEDULE_TZ
     try:
-        return ZoneInfo(tz_name)
+        return ZoneInfo(name)
     except ZoneInfoNotFoundError:
-        print(f"   ERROR: timezone desconegut '{tz_name}', usant UTC")
-        return timezone.utc
+        print(f"   ERROR: timezone desconegut '{name}', usant {SCHEDULE_TZ}")
+        return ZoneInfo(SCHEDULE_TZ)
 
 
 def is_due(schedule_cron, now_utc, window_seconds, tz_name=None):
-    """Return True if `schedule_cron` (interpreted in `tz_name`) would have
-    fired within the last `window_seconds` before `now_utc`.
+    """Return True if `schedule_cron` (interpreted in the company TZ) would
+    have fired within the last `window_seconds` before `now_utc`.
     """
     tz = resolve_tz(tz_name)
     now_in_tz = now_utc.astimezone(tz)
@@ -106,12 +113,11 @@ def main():
             print(f"   - {path.name}: ERROR llegint YAML: {exc}")
             continue
         schedule = cfg.get("schedule")
-        tz_name = cfg.get("timezone")
         if not schedule:
             print(f"   - {path.name}: sense camp 'schedule' → omès")
             continue
-        label = f"{schedule}" + (f" [{tz_name}]" if tz_name else " [UTC]")
-        if is_due(schedule, now, WINDOW_SECONDS, tz_name):
+        label = f"{schedule} [{SCHEDULE_TZ}]"
+        if is_due(schedule, now, WINDOW_SECONDS, SCHEDULE_TZ):
             print(f"   - {path.name}: DUE  ({label})")
             due.append(path)
         else:

@@ -40,7 +40,7 @@ The data layer stays hybrid: briefs continue to be persisted as YAML files in th
 
 ### Brief List & Detail View
 
-6. The main content area for a brief MUST present every field of the brief as an editable form: `name`, `schedule`, `timezone`, `slack_channel`, list of `sources` (each with `mode_report_token` and list of queries), and `prompt`.
+6. The main content area for a brief MUST present every field of the brief as an editable form: `name`, `schedule`, `slack_channel`, list of `sources` (each with `mode_report_token` and list of queries — each query being `{token, csv}`), and `prompt`. The `timezone` field has been removed from the data model; the company runs in a single TZ (`Europe/Madrid`, displayed as "Catalunya") hardcoded in the Python scheduler.
 7. **Each field MUST have an adjacent inline description** explaining what the field is for, the expected format, and a concrete example. The description MAY be expanded/collapsed but is visible by default for a new user (PLG: no onboarding needed).
 8. The `prompt` field MUST be a multi-line text area with monospace font and visible line wrapping, sized to comfortably show ~20 lines without scrolling.
 9. The application MUST allow the user to add and remove **sources** dynamically (rows of the form).
@@ -64,9 +64,18 @@ The data layer stays hybrid: briefs continue to be persisted as YAML files in th
 18. The schedule MUST be set through a **visual builder** (no raw cron typing required in the default flow). The builder allows the user to specify:
     - The frequency: every day, specific days of the week, specific day of the month, or every N hours.
     - The time(s) of day (HH:MM, in 15-minute increments).
-    - The timezone (default: `Europe/Madrid`).
+    (Time zone is not configurable — see §6 "No per-brief Time Zone field". The builder labels times as Catalunya local.)
 19. The visual builder MUST emit a **valid cron expression** persisted to the YAML, plus a human-readable description shown to the user (e.g., "Cada dimarts a les 10:00 hora local Cooltra").
 20. The visual builder MAY include a small "Advanced: edit cron directly" toggle for power users; this is a stretch goal, not a v1 requirement.
+
+### Manual Test Runs (added 2026-05-16 after user feedback)
+
+T1. The brief detail view MUST expose a **"Run Now" button** at the **top of the form** (above the Brief Name field), prominent so users can fire an on-demand execution with one click. The button triggers the same GitHub Actions workflow used by the schedule (`run-brief.yml`, `workflow_dispatch`). The button is also rendered on the new-brief page but **disabled until the brief has been saved** (a tooltip / hint on the disabled state explains: «Crea el brief abans de poder executar-lo» or equivalent). Once the brief exists, "Run Now" becomes enabled (subject to the cooldown in T2).
+T2. To prevent Slack spam and runaway token consumption, the platform MUST enforce a **cooldown of 2 minutes per brief between Run Now dispatches**:
+    - **Client-side**: after a successful dispatch, the button stays disabled for 120 seconds and displays a countdown (e.g. `Run Now — torna a provar en 1:42`).
+    - **Server-side**: the API endpoint MUST reject a second dispatch for the same brief within 120 seconds with HTTP 429 and a `retry_after_seconds` body. The state is in-memory in the serverless function; cross-instance accuracy is best-effort.
+T3. On a successful dispatch the platform MUST toast a confirmation and, if available, link to the GitHub Actions run page so the user can monitor progress.
+T4. Adding the Run Now button requires extending the platform's GitHub PAT scope to include `actions:write` (currently only `contents:write` + `metadata:read`). This is a manual operator action documented in the rollout runbook.
 
 ### Per-Brief Execution Metadata
 
@@ -122,9 +131,37 @@ The data layer stays hybrid: briefs continue to be persisted as YAML files in th
 
 ## 6. Design Considerations
 
+- **Language policy** (added 2026-05-16 after user feedback on the 2.0 preview):
+  - **UI chrome is always in English**: every clickable button label, every form field label, page headings, navigation entries, table column headers, status badges. Reason: teams across Cooltra share the vocabulary in English (e.g. «el _Slack channel_»), so support and documentation reference the exact words the user sees on screen.
+  - **Narrative, help, and feedback strings are localised to the user's language** (default Catalan): inline help texts, validation error messages, toasts, dialog descriptions, loading / empty / error states, the «Carregat a HH:MM» indicator and similar status copy.
+  - When localised text references a UI chrome element, the chrome term stays in English in line. Example: the form must render «El **Brief Name** és obligatori» (not «El nom del brief és obligatori»).
+  - Multi-language support is **a confirmed future requirement**, not a maybe. This version intentionally ships localised strings inline (zod messages in `schemas.ts`, `FIELD_HELP` in `BriefForm.tsx`, toasts, dialog bodies, fallbacks, etc.) to keep the 2.0 diff focused. A dedicated task (see future-tasks 7.0 in the tasks file) will:
+    1. Inventory every Catalan string in the web app.
+    2. Move them into a single dictionary structure under `web/lib/i18n/<locale>.ts` accessed via a small `t(key)` helper.
+    3. Pick the runtime mechanism — leaning toward an in-house dictionary now, swappable to `next-intl` later if locale-aware routing / pluralisation / formatted messages become necessary.
+    4. Add the second language catalog (likely Spanish or English) and a locale switcher.
+    Until that task is completed, all localised copy is the literal Catalan string in its component.
+- **Help-text affordance**: every form field exposes its explanation behind a small **Info icon next to the label**. Hover (or keyboard focus) opens a shadcn Tooltip with the help text; on touch devices a tap toggles it. Originally implemented as a click-triggered shadcn Popover during 2.0; switched to Tooltip after user feedback that the icon felt empty on hover. Reason for hiding the help in the first place: when always-visible, the descriptions crowded the form visually. (Deviates from the original "no expandable tooltips" stance below, kept for history; the user revised the call after seeing 2.0 live.)
+- **Form layout: Brief Name above, Inputs section, Outputs section.** The detail view is structured as a single `Brief Name` field at the top (the brief's identity), followed by two bordered cards:
+  - **Inputs** card — what the LLM ingests: the list of `Sources` (each one a Mode report plus its queries) and the `Prompt`.
+  - **Outputs** card — when and where the brief is published: `Schedule`, `Slack Channel`. (Time Zone is no longer surfaced; see the next bullet.)
+  This grouping was added after 2.0 user review to give users a mental model of the brief lifecycle (data in → LLM → message out) before they read any individual field.
+- **Canonical UI labels** (the chrome strings that appear on screen and that support / documentation must reference; the corresponding YAML keys are shown in parens — see §4.6 for the structural data model):
+  - Brief Name (`name`)
+  - Schedule (`schedule`)
+  - Slack Channel (`slack_channel`)
+  - Sources (`sources[]`)
+  - Mode report (`sources[].mode_report_token` — the "token" suffix is dropped from the label because it was jargon)
+  - Queries (`sources[].queries[]`)
+  - Query token (`sources[].queries[].token`)
+  - CSV (`sources[].queries[].csv`)
+  - Prompt (`prompt`)
+  Schedule is shown without the "(cron)" suffix it carried during 2.0 — non-technical users were bouncing off the field. The cron syntax stays the internal representation but is no longer surfaced in the label. The visual builder (task 3.0) makes the syntax irrelevant to the user.
+- **No per-brief Time Zone field**: every brief schedule is interpreted in the company-wide TZ (hardcoded `Europe/Madrid`, surfaced in the UI as "Catalunya"). Reason: the entire company operates on the same timezone, so the field was noise. The Schedule «i» tooltip mentions the TZ explicitly; the YAML no longer carries a `timezone:` field and the Python `due_runner.py` ignores any leftover value. If multi-TZ ever becomes a real requirement, re-introducing the field is straightforward (`resolve_tz` already accepts a name).
+- **Required fields are marked with a red asterisk** next to the label. Validation runs continuously in the background to drive the disabled state of Save / Create, but field-level error messages (and the red `aria-invalid` border) are only shown after the user has touched the field or attempted to submit. The opening state of New-brief is clean: asterisks, a disabled Create button, no red noise.
 - **Visual language**: continue with shadcn/ui aesthetic already established in the static dashboard (zinc palette, Inter font, JetBrains Mono for code/tokens, generous padding, subtle borders, rounded-lg). Reuse the design tokens.
 - **Sidebar width**: ~280px on desktop. On screens narrower than `lg` (1024px), the sidebar collapses to a hamburger menu.
-- **Form fields with inline help**: each field renders as `<Label> + <Input> + <description below in small muted text>`. No expandable tooltips at first — just always-visible muted text. PLG philosophy: zero friction, zero hidden info.
+- ~~**Form fields with inline help**: each field renders as `<Label> + <Input> + <description below in small muted text>`. No expandable tooltips at first — just always-visible muted text. PLG philosophy: zero friction, zero hidden info.~~ Superseded by the "Help-text affordance" bullet above (Info-icon Tooltip) after 2.0 user review.
 - **Cron visual builder**: standalone component, ~400px wide, with three sections: "Quan" (frequency: radio buttons), "A quina hora" (time picker, 15-min increments), "Zona horària" (dropdown defaulting to `Europe/Madrid`). A live preview below shows the human-readable schedule (e.g. "Cada dimarts a les 10:00 (Europe/Madrid)") and, in muted font, the generated cron expression.
 - **Slack channel selector**: shadcn/ui `Combobox` pattern — a button that opens a popover with a searchable list. Public channels show with a `#` icon; private channels show with a `🔒` icon. Channel names rendered in `font-mono` to match Slack's own visual convention. Empty state when the bot is in zero channels: a friendly message + the `/invite @<bot-name>` snippet.
 - **"Bot not in channel" warning**: renders below the channel field as a shadcn/ui `Alert` (warning variant — yellow/amber, not red, because the situation is recoverable). Inside: one line of explanation + a code block with the `/invite` snippet + a small "Copy" button that triggers a transient "Copiat!" toast. A subtle "Refresh channels" link to re-query the list after the user invites the bot.
@@ -150,8 +187,13 @@ The data layer stays hybrid: briefs continue to be persisted as YAML files in th
   - `DELETE /api/briefs/[name]`: deletes a brief.
   - `GET /api/runs/[brief]`: returns the latest execution metadata from GitHub Actions artifacts.
   - `GET /api/version`: returns the latest commit sha, subject, and timestamp.
-- **GitHub authentication**: a service GitHub App or PAT stored in Vercel environment variables. The PAT scopes: `contents:write` on this repository only.
+- **GitHub authentication**: a service GitHub App or PAT stored in Vercel environment variables. The PAT scopes: `contents:write` on this repository (plus `actions:write` once task 6.0 lands for the Test-run button).
   - *Note*: never expose this PAT client-side. All GitHub API calls go through the server.
+
+### Next.js caching (server tree consistency)
+- The root `app/layout.tsx` is marked `export const dynamic = "force-dynamic"`. The sidebar is a Server Component that fetches the brief list directly via `lib/briefs.ts:getBriefList()`; without `force-dynamic`, Next 16's auto-detection was leaving the layout statically rendered and the sidebar's RSC payload survived across mutations, so renaming or deleting a brief wouldn't reflect in the list until a full reload.
+- Every mutation endpoint (`POST /api/briefs`, `PUT /api/briefs/[name]`, `DELETE /api/briefs/[name]`) MUST call `revalidatePath("/", "layout")` right after the GitHub commit lands, so the next `router.refresh()` from the client renders a fresh sidebar. Any future endpoint that mutates a brief MUST follow the same pattern (e.g., task 6.0's Test dispatch does NOT need this — it doesn't change YAML — but a future "duplicate brief" or "rename brief" endpoint would).
+- `lib/github.ts:ghFetch` sets `cache: "no-store"` on every GitHub API call so the Data Cache layer is opted out too. This is belt-and-suspenders alongside `revalidatePath`.
 
 ### Slack channel discovery
 - New API endpoint `GET /api/channels`: server-side calls Slack `conversations.list` with `types=public_channel,private_channel`, filters where `is_member: true`, and returns `[{name, is_private}]`. Strips out everything else.
