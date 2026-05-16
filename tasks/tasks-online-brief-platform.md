@@ -319,3 +319,94 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
   - [x] 12.7 Implemented shared `web/components/BriefMarkdown.tsx` wrapping `react-markdown` with `remark-gfm` and a hand-rolled `[&_h1]: / [&_p]: / ...` style configuration tuned for both the global page and the drawer. One module to evolve typography for both surfaces. Default sanitisation; no `rehype-raw`.
   - [x] 12.8 Implemented `web/components/HistoryDrawerButton.tsx` and mounted it in the brief detail's title-row toolbar to the LEFT of `<RunNowButton>`. Uses the shadcn `Sheet` primitive (added via `npx shadcn add sheet`) with `side="right"` and `sm:max-w-xl`. Fetches `/api/briefs/[name]/outputs` on first open (single-brief endpoint — bulk not needed here). Loading skeleton during fetch; error state with a Retry button that force-refetches. The brief detail page stays mounted behind the drawer so closing returns the user to the exact scroll position + any in-flight form state.
   - [x] 12.9 Smoke test on Vercel preview by user 2026-05-16. All 7 checklist points passed: sidebar shows 4 entries with active highlight; `/history` lists briefs in the expected order with latest output visible per card; expander reveals older runs cleanly; markdown renders cleanly; briefs without outputs at the bottom under the placeholder divider; per-brief drawer slides in from the right with outputs expanded; closing the drawer preserves underlying state.
+
+- [ ] **13.0 Authentication & access wall** (new, added 2026-05-16, future capability — implementation deferred)
+
+  Retire the «openly accessible» stance (Non-Goal §5 #1, now superseded) with the thinnest possible AUTH layer: magic-link login via Resend, domain-restricted to `@cooltra.com` / `@felyx.com`, JWT-only sessions (no DB) with a 30-day sliding lifetime. Once inside, every authenticated user still sees and edits every brief — `owner_email` is populated server-side from the session but does NOT gate any UI action; the field is captured so a future per-user iteration can introduce «My briefs» filters without a schema break. Audit trail lives in `git log` only (commit message format `Create/Update/Delete brief: <slug> (by <user-email>)`). Cost: 0 € (Auth.js v5 free, Resend free tier 3 000 mails/month is ~3 orders of magnitude over the actual Cooltra usage, no DB, no Redis).
+
+  User decisions resolved 2026-05-16 via `create-prd` Q&A:
+  - **Identity provider** = magic link via email (Resend) — no IdP lock-in.
+  - **Auth model** = access wall ONLY. Ownership is decorative.
+  - **Migration** = bulk-assign every existing brief to `oriol@cooltra.com`.
+  - **Audience** = `@cooltra.com` OR `@felyx.com` only.
+  - **Audit trail** = commit messages only, NO `last_edited_by` on the YAML.
+  - **Session** = 30-day sliding JWT cookie.
+
+  - [ ] 13.1 **User action (cannot be coded)**: sign up to Resend with a Cooltra-owned email (free tier, 3 000 mails/month). Verify a sender domain (e.g. `reporting@cooltra.com`) by adding the SPF and DKIM DNS records Resend prescribes to Cooltra's DNS console. Wait for green/verified state (usually <10 min after DNS propagates). Copy the API key — needed for 13.2. Estimated effort: 30 min including the round-trip to whoever owns the cooltra.com DNS panel.
+
+  - [ ] 13.2 **User action (cannot be coded)**: add 4 env vars to Vercel (Production + Preview, encrypted):
+    - `AUTH_SECRET` — random 32+ bytes, generate with `openssl rand -base64 32`. Used by Auth.js to sign JWTs.
+    - `AUTH_RESEND_KEY` — the Resend API key from 13.1.
+    - `AUTH_RESEND_FROM` — the verified sender address from 13.1 (e.g. `Cooltra Reporting <reporting@cooltra.com>`).
+    - `AUTH_ALLOWED_DOMAINS` — CSV `cooltra.com,felyx.com`. Read by `assertEmailAllowed()` at the auth callbacks.
+    Until these exist, `/api/auth/*` will surface a 500 with "missing AUTH_SECRET" on first hit.
+
+  - [ ] 13.3 Add the AUTH dependencies inside `web/`: `npm install next-auth@beta resend`. Auth.js v5 is in beta at time of writing — pin the resolved minor version into `package.json` so future `npm install`s don't drift. `resend` ships the SDK used by Auth.js's Email provider transport (no need for a separate nodemailer setup).
+
+  - [ ] 13.4 Implement `web/lib/auth.ts` exporting `{ auth, handlers, signIn, signOut }` from `NextAuth({...})`. Components:
+    - `providers: [Resend({ from: process.env.AUTH_RESEND_FROM!, apiKey: process.env.AUTH_RESEND_KEY! })]`
+    - `session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 }` (30-day max, refreshes once a day so 30 days is sliding-from-last-activity)
+    - `pages: { signIn: "/sign-in", verifyRequest: "/sign-in?check-email=1", error: "/sign-in?error=1" }`
+    - `callbacks.signIn({ user })` → calls `assertEmailAllowed(user.email)` and returns `false` if the domain is not allowed (rejects the magic-link request before Resend sends anything).
+    - `callbacks.jwt({ token, user })` and `callbacks.session({ session, token })` → re-run `assertEmailAllowed` (defence in depth: rejects a link that was issued before the domain list tightened).
+    - **Shared util `assertEmailAllowed(email)`**: lives in the same file (small enough; no need for a separate module). Reads `process.env.AUTH_ALLOWED_DOMAINS` (CSV), splits, trims, lowercases, returns `true` only when `email.split("@")[1]?.toLowerCase()` is in the set. Throws when the env var is missing (so we never silently accept everyone).
+
+  - [ ] 13.5 Implement `web/app/api/auth/[...nextauth]/route.ts` re-exporting the handlers:
+    ```ts
+    export { GET, POST } from "@/lib/auth";
+    ```
+    (Auth.js v5 exposes `handlers.GET` and `handlers.POST` directly; the named re-export is the App Router convention.)
+
+  - [ ] 13.6 Implement `web/proxy.ts` (the Next.js 16 rename of `middleware.ts` — see task 1.1 note). Re-exports the `auth` middleware from `lib/auth.ts`:
+    ```ts
+    export { auth as default } from "@/lib/auth";
+    export const config = {
+      matcher: ["/((?!api/auth|sign-in|_next/static|_next/image|favicon.ico).*)"],
+    };
+    ```
+    Auth.js v5's `auth` export doubles as a Next.js middleware: it redirects unauthenticated requests to the configured `pages.signIn` and adds the session to subsequent handlers via `req.auth`. The matcher exempts the auth callbacks, the sign-in page itself, and Next's static asset routes.
+
+  - [ ] 13.7 Implement `web/app/sign-in/page.tsx`. Server component reading `searchParams` to decide which state to render:
+    - **Default**: centered card with an `<Input type="email">` + Submit button. Chrome English («Sign in», «Email», «Send sign-in link»). Narrative Catalan below the input («T'enviarem un link al teu correu per iniciar sessió. Cal un compte @cooltra.com o @felyx.com.»). The form action is a server action calling `signIn("resend", { email, redirectTo: searchParams.callbackUrl ?? "/" })`.
+    - `?check-email=1` → renders a success state: «Revisa el teu correu — t'hem enviat un link per iniciar sessió. Caduca en 10 minuts.» + a small «Send again» link that triggers a fresh request.
+    - `?error=1` (or `?error=Verification` / `?error=AccessDenied`) → renders an amber Alert mapping the Auth.js error code to a friendly Catalan message: AccessDenied → «Aquest email no està autoritzat — utilitza un compte @cooltra.com o @felyx.com.»; Verification → «El link ha caducat o ja s'ha utilitzat. Demana'n un de nou.»; default → «Hi ha hagut un error inesperat. Torna a provar.»
+    - The page does NOT show the existing sidebar/footer (no session yet). Uses a minimal layout — either its own `app/sign-in/layout.tsx` OR an early return path inside the root layout.
+
+  - [ ] 13.8 Implement `web/components/SessionFooter.tsx` (client) and mount it in `web/app/layout.tsx` immediately above the existing `<Footer>` in the sidebar's bottom pinned area. Receives `email` as a prop (the root layout reads it server-side via `await auth()` and passes it down). Renders two lines in `text-[11px] text-zinc-400`:
+    ```
+    <truncated email>
+    Sign out
+    ```
+    Where «Sign out» is a `<button>` calling `signOut({ callbackUrl: "/sign-in" })`. The email truncates with `truncate` + a `title` attribute for the full value on hover. When `email` is undefined (e.g. the layout decided to render the sign-in shell despite the proxy normally preventing this), the component renders nothing.
+
+  - [ ] 13.9 Add `await auth()` + 401 gating to every `/api/*` route handler EXCEPT the auth callbacks. A small helper `web/lib/auth-guard.ts:requireSession()` returns the session or `throw new Response("Unauthorized", { status: 401 })` so the call site is one line: `const session = await requireSession();`. Files to update: `app/api/briefs/route.ts`, `app/api/briefs/[name]/route.ts`, `app/api/briefs/[name]/run/route.ts`, `app/api/briefs/[name]/outputs/route.ts`, `app/api/briefs/outputs/all/route.ts`, `app/api/channels/route.ts`, `app/api/runs/[brief]/route.ts`, `app/api/mode/space-catalog/route.ts`, `app/api/version/route.ts`. The proxy already redirects browser routes to `/sign-in`; this layer covers programmatic API access (curl, scripts, fetch from outside the app shell).
+
+  - [ ] 13.10 Schema + serializer update for `owner_email`:
+    - `web/lib/schemas.ts`: extend `briefSchema` with `owner_email: z.string().email().nullable().optional()`. Keep it OPTIONAL (not required) so unmigrated YAMLs round-trip without schema errors during the migration window.
+    - `web/lib/yaml.ts:parseBrief`: read `owner_email` if present, default to `null`. `serializeBrief`: emit the key only when the value is a non-empty string (mirrors the pattern from `reference_link` — null/empty values are dropped from the YAML output to keep the file clean).
+    - `EMPTY_BRIEF` default: `owner_email: null` (will be overridden server-side by the POST handler from the session — see 13.11).
+
+  - [ ] 13.11 Mutation endpoints capture `session.user.email`:
+    - **`POST /api/briefs`**: after `requireSession()`, set `brief.owner_email = session.user.email` BEFORE the zod parse + `serializeBrief` call. The commit message becomes `Create brief: <slug> (by <user-email>)`.
+    - **`PUT /api/briefs/[name]`**: PRESERVE the existing `owner_email` from the on-disk brief (read via `readBrief`) — do NOT overwrite from the session even though the editor is authenticated. The owner does not change just because someone else edited the YAML. Commit message: `Update brief: <slug> (by <user-email>)`.
+    - **`DELETE /api/briefs/[name]`**: no payload to mutate; just append the user to the commit message: `Delete brief: <slug> (by <user-email>)`.
+    - Extract the commit-message builder to a small helper `web/lib/github.ts:commitMessage(action, slug, userEmail)` so the format stays consistent across the three sites. Today's `writeBrief` / `deleteBrief` already accept a message string — pass through.
+
+  - [ ] 13.12 **Bulk migration commit**: a one-time script-or-PR that adds `owner_email: oriol@cooltra.com` to every YAML in `briefs/`. Two options for the implementer:
+    - **(a) Manual edit + single commit** (simpler given the current brief count — ≤5 YAMLs). Edit each file directly, commit as «chore: bulk-assign owner_email to oriol@cooltra.com for existing briefs (auth rollout)».
+    - **(b) Throwaway script `scripts/migrate_owner_email.py`** that walks `briefs/*.yml`, parses with `pyyaml`, sets the key idempotently, writes back. Useful only if the brief count grows before 13.0 lands.
+    Whichever path: the commit MUST land BEFORE the AUTH switch is flipped in production (so no brief is post-rollout-orphan). Verify by running `grep -L "owner_email:" briefs/*.yml` after the migration — expect zero output.
+
+  - [ ] 13.13 Smoke test on Vercel preview (deploys automatically when the feature branch pushes). Checklist:
+    1. Un-logged hit on `/` redirects to `/sign-in` (browser network tab should show 307).
+    2. Un-logged `curl /api/briefs` returns 401 with no body leak.
+    3. Submitting a `@gmail.com` address on `/sign-in` shows the AccessDenied message and the Resend dashboard records ZERO mail send (defence in depth verified: the rejection happens before the provider is even contacted).
+    4. Submitting a `@cooltra.com` address lands the magic-link in the inbox within ~10 seconds; clicking it redirects to `/` and the sidebar SessionFooter shows the logged-in email + Sign out.
+    5. Repeat (4) with `@felyx.com` — same outcome (verifies the second allowed domain works).
+    6. Forwarding the `@cooltra.com` magic-link to a `@gmail.com` inbox and clicking from there is REJECTED (verifies the second-pass domain check at the jwt callback).
+    7. Editing a brief on the preview branch lands a commit on the branch with «(by <my-email>)» in the message — verify via the GitHub Actions / commits UI on the PR.
+    8. Creating a new brief on the preview branch results in a YAML with `owner_email: <my-email>` and the create-commit «(by <my-email>)».
+    9. Editing an existing brief PRESERVES the original `owner_email` (it is NOT rewritten to the editor's email).
+    10. Run Now still dispatches the workflow successfully and the resulting GitHub Actions run is visible.
+    11. Sign out lands the browser back at `/sign-in` and the session cookie is cleared (verify via DevTools → Application → Cookies).
+    12. Wait ~1 day, return to the app — session still valid (verifies sliding-30d works through the daily updateAge tick).
