@@ -12,5 +12,5 @@ prompt: |-
   Al final de tot fes un poema amb els noms de les taules procurant que rimi.
 
   Restriccions:
-  - Almenys 100 paraules per cada taula.
+  - Mai superis els 2000 caràcters de resposta
 owner_email: null
