@@ -1,6 +1,6 @@
 name: Test del cron tasca 3.0
 schedule: 45 13 * * *
-slack_channel: test-github-oriol
+slack_channel: testing-canal-nou-eliminar
 sources:
   - mode_report_token: 7b89f8a2f8d8
     queries:
