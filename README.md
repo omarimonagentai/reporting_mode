@@ -96,3 +96,4 @@ The active iteration is tracked in `tasks/tasks-online-brief-platform.md`. Major
 - 10.0 ✅ Brief output history — backend capture + `/api/briefs/[name]/outputs` endpoint.
 - 11.0 ✅ Mode catalog landing — `/` becomes a browse view of the Mode space.
 - 12.0 ✅ Brief output history — UI surfacing (`/history` page + per-brief drawer on the detail view).
+- 13.0 ⏳ Authentication & access wall — magic-link login + domain restriction.
