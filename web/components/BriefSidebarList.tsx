@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -11,6 +10,12 @@ import {
 import { cn } from "@/lib/utils";
 import type { BriefListItemWithRun } from "@/lib/briefs";
 import type { RunLookup } from "@/lib/runs";
+
+// Heuristic: with the 280px sidebar at Inter text-sm, a name longer
+// than ~28 characters won't fit before the truncation ellipsis kicks
+// in. Coarser than DOM measurement but reliable across font-loading
+// races. Tune if the sidebar width changes.
+const TRUNCATE_THRESHOLD = 28;
 
 export function BriefSidebarList({
   briefs,
@@ -54,33 +59,7 @@ function BriefRow({
   href: string;
   isActive: boolean;
 }) {
-  const nameRef = useRef<HTMLSpanElement>(null);
-  const [isTruncated, setIsTruncated] = useState(false);
-
-  useEffect(() => {
-    const el = nameRef.current;
-    if (!el) return;
-    const check = () => {
-      setIsTruncated(el.scrollWidth > el.clientWidth);
-    };
-    // 1) Initial measurement after the browser has laid out.
-    const raf = requestAnimationFrame(check);
-    // 2) Re-measure once Inter (next/font) has finished swapping in —
-    //    the box size doesn't change so ResizeObserver wouldn't fire,
-    //    but the rendered text width does.
-    if (typeof document !== "undefined" && document.fonts) {
-      void document.fonts.ready.then(() => {
-        if (nameRef.current) check();
-      });
-    }
-    // 3) Subsequent box-size changes (sidebar / viewport resize).
-    const ro = new ResizeObserver(check);
-    ro.observe(el);
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-    };
-  }, [brief.name]);
+  const isTruncated = brief.name.length > TRUNCATE_THRESHOLD;
 
   const row = (
     <Link
@@ -94,9 +73,7 @@ function BriefRow({
     >
       <div className="flex items-center gap-1.5">
         <StatusIcon run={brief.run} />
-        <span ref={nameRef} className="min-w-0 flex-1 truncate">
-          {brief.name}
-        </span>
+        <span className="min-w-0 flex-1 truncate">{brief.name}</span>
       </div>
       <RunMeta run={brief.run} />
     </Link>
