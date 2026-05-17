@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import { Suspense } from "react";
 import { BriefSidebar } from "@/components/BriefSidebar";
 import { Footer } from "@/components/Footer";
@@ -28,11 +29,19 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The middleware writes the current pathname to a request header
+  // (x-pathname). We branch the layout on the login route so the
+  // unauthenticated user doesn't see a gated sidebar rendered next
+  // to the password form.
+  const headersList = await headers();
+  const pathname = headersList.get("x-pathname") ?? "";
+  const isAuthRoute = pathname.startsWith("/login");
+
   return (
     <html
       lang="ca"
@@ -40,29 +49,36 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <TooltipProvider>
-          <DryRunProvider>
-            <div className="flex min-h-screen">
-              <aside className="w-[280px] shrink-0 border-r border-zinc-200 bg-white flex flex-col">
-                <div className="flex-1 overflow-y-auto">
-                  <Suspense fallback={<SidebarSkeleton />}>
-                    <BriefSidebar />
+          {isAuthRoute ? (
+            <>
+              {children}
+              <Toaster />
+            </>
+          ) : (
+            <DryRunProvider>
+              <div className="flex min-h-screen">
+                <aside className="w-[280px] shrink-0 border-r border-zinc-200 bg-white flex flex-col">
+                  <div className="flex-1 overflow-y-auto">
+                    <Suspense fallback={<SidebarSkeleton />}>
+                      <BriefSidebar />
+                    </Suspense>
+                  </div>
+                  <Suspense
+                    fallback={
+                      <div className="px-4 py-3 text-[11px] text-zinc-400 font-mono">
+                        Carregant versió…
+                      </div>
+                    }
+                  >
+                    <Footer />
                   </Suspense>
-                </div>
-                <Suspense
-                  fallback={
-                    <div className="px-4 py-3 text-[11px] text-zinc-400 font-mono">
-                      Carregant versió…
-                    </div>
-                  }
-                >
-                  <Footer />
-                </Suspense>
-              </aside>
+                </aside>
 
-              <main className="flex-1 overflow-y-auto">{children}</main>
-            </div>
-            <Toaster />
-          </DryRunProvider>
+                <main className="flex-1 overflow-y-auto">{children}</main>
+              </div>
+              <Toaster />
+            </DryRunProvider>
+          )}
         </TooltipProvider>
       </body>
     </html>

@@ -37,6 +37,7 @@ tasks/                        PRD + task list driving the current iteration
   - `SLACK_BOT_TOKEN` — for the channel picker (`/api/channels`).
   - `CRON_SECRET` — 32+ byte random string (`openssl rand -hex 32`) shared between Vercel Cron and `/api/scheduler/tick`. Vercel Cron auto-injects it as the `Authorization: Bearer …` header; the endpoint rejects mismatches with 401.
   - `GROQ_API_KEY` — same value already in GitHub Secrets for the executor pipeline; the web app needs it for the dry-run endpoint (`/api/briefs/dry-run`, task 18.0) and the Prompt Assistant endpoint (`/api/briefs/prompt-assist`, task 19.0). Copy the existing GitHub Secret into Vercel env vars (Production + Preview, encrypted).
+  - `APP_PASSWORD` — single shared secret distributed by the operator to whoever needs access. Compared verbatim by the middleware against the `app-auth` cookie value the login route writes. Not real auth — just a password gate. Set in Vercel env vars (Production + Preview, encrypted). Rotating this value invalidates every existing cookie on the next request.
 
 ## Python executor
 
