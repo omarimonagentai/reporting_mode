@@ -19,6 +19,9 @@ import { ChannelCombobox } from "@/components/ChannelCombobox";
 import { DryRunButton } from "@/components/DryRunButton";
 import { PreviewButton } from "@/components/PreviewButton";
 import { PreviewSheet } from "@/components/PreviewSheet";
+import { PromptAssistantButton } from "@/components/PromptAssistantButton";
+import { PromptAssistantSheet } from "@/components/PromptAssistantSheet";
+import { PromptAssistantProvider } from "@/hooks/usePromptAssistant";
 import { QueryCombobox } from "@/components/QueryCombobox";
 import { ReportCombobox } from "@/components/ReportCombobox";
 import { CronBuilder } from "@/components/CronBuilder";
@@ -555,6 +558,7 @@ export function BriefForm(props: Props) {
     reset,
     control,
     trigger,
+    setValue,
     getValues,
     formState: { errors, isValid, touchedFields, isSubmitted },
   } = useForm<FormValues>({
@@ -580,6 +584,7 @@ export function BriefForm(props: Props) {
   const [preview, setPreview] = useState<
     { reportToken: string; queryToken: string } | null
   >(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   const isEditing = mode === "edit";
 
@@ -714,7 +719,17 @@ export function BriefForm(props: Props) {
       </p>
     ) : null;
 
+  const assistantStorageKey = isCreate
+    ? "prompt-assistant:_new"
+    : `prompt-assistant:${props.filename}`;
+
+  function applyAssistantPrompt(text: string) {
+    setValue("prompt", text, { shouldDirty: true, shouldValidate: true });
+    if (mode === "view") setMode("edit");
+  }
+
   return (
+    <PromptAssistantProvider applyPrompt={applyAssistantPrompt}>
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -794,13 +809,20 @@ export function BriefForm(props: Props) {
         </div>
 
         <div>
-          <LabelRow
-            htmlFor="prompt"
-            hint={{ text: FIELD_HELP.prompt, label: "Prompt" }}
-            required
-          >
-            Prompt
-          </LabelRow>
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="prompt">
+                Prompt
+                <span className="ml-0.5 text-red-600" aria-hidden="true">
+                  *
+                </span>
+              </Label>
+              <FieldHint text={FIELD_HELP.prompt} label="Prompt" />
+            </div>
+            <PromptAssistantButton
+              onClick={() => setAssistantOpen(true)}
+            />
+          </div>
           {isEditing ? (
             <Textarea
               id="prompt"
@@ -1016,5 +1038,12 @@ export function BriefForm(props: Props) {
         </Dialog>
       )}
     </form>
+    <PromptAssistantSheet
+      open={assistantOpen}
+      onClose={() => setAssistantOpen(false)}
+      getBrief={() => getValues() as Brief}
+      storageKey={assistantStorageKey}
+    />
+    </PromptAssistantProvider>
   );
 }
