@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Edit, History, MoreVertical, Play } from "lucide-react";
 import { DraftRunConfirmDialog } from "@/components/DraftRunConfirmDialog";
+import { PublishToggleButton } from "@/components/PublishToggleButton";
 import {
   Popover,
   PopoverContent,
@@ -93,6 +94,11 @@ export function BriefRowMenu({
             href={`/briefs/${filename}?history=1`}
             icon={<History className="size-4 text-zinc-500" />}
             label="History"
+          />
+          <PublishToggleButton
+            filename={filename}
+            published={published}
+            variant="menu-item"
           />
         </PopoverContent>
       </Popover>

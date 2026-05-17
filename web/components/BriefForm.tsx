@@ -16,7 +16,6 @@ import { Info, Plus, Trash2 } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { ChannelCombobox } from "@/components/ChannelCombobox";
-import { PublishedToggle } from "@/components/PublishedToggle";
 import { QueryCombobox } from "@/components/QueryCombobox";
 import { ReportCombobox } from "@/components/ReportCombobox";
 import { CronBuilder } from "@/components/CronBuilder";
@@ -646,18 +645,7 @@ export function BriefForm(props: Props) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between gap-3">
-          <Controller
-            control={control}
-            name="published"
-            render={({ field }) => (
-              <PublishedToggle
-                value={field.value}
-                onChange={field.onChange}
-                disabled={mode === "view"}
-              />
-            )}
-          />
+        <div className="flex items-center justify-end gap-3">
           {actionButtons}
         </div>
         <div className="flex justify-end">{validityHint}</div>
