@@ -410,3 +410,59 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     10. Run Now still dispatches the workflow successfully and the resulting GitHub Actions run is visible.
     11. Sign out lands the browser back at `/sign-in` and the session cookie is cleared (verify via DevTools → Application → Cookies).
     12. Wait ~1 day, return to the app — session still valid (verifies sliding-30d works through the daily updateAge tick).
+
+- [ ] **14.0 Scheduler reliability via Vercel Cron** — PRD §4 «Scheduler reliability via Vercel Cron» + §7 «Scheduler reliability via Vercel Cron». Branch `feature/14.0-vercel-cron-scheduler`. Single-PR atomic cutover: ship the new endpoint AND retire the old GH Actions scheduler in the same commit set, since running both in parallel would publish briefs twice. **Decision summary (2026-05-17)**: Vercel Pro confirmed → `*/5 * * * *` cron with strict 5-min window (`<`, not `<=`); JSON response + structured `console.log` for observability; rollback via PR revert.
+
+  - [ ] 14.1 Add `vercel.json` at the **`web/`** directory root (NOT the repo root — task 1.5 set the Vercel Root Directory to `web`). Content:
+    ```json
+    {
+      "crons": [
+        { "path": "/api/scheduler/tick", "schedule": "*/5 * * * *" }
+      ]
+    }
+    ```
+    Vercel ignores `vercel.json` at locations other than the Root Directory, so the path matters. Schedule is UTC (Vercel does not accept a TZ flag); the endpoint converts to `Europe/Madrid` internally.
+
+  - [ ] 14.2 Generate `CRON_SECRET` and register it in Vercel env vars (Production + Preview, encrypted). Operator: `openssl rand -hex 32`. The secret never enters the repo. Document in the README's env-var section alongside `GITHUB_TOKEN`, `SLACK_BOT_TOKEN`.
+
+  - [ ] 14.3 Implement `web/lib/scheduler.ts`:
+    - Export `WINDOW_MS = 5 * 60 * 1000` (300 000).
+    - Export `isDue(schedule: string, now: Date, windowMs: number = WINDOW_MS): boolean`. Implementation: `CronExpressionParser.parse(schedule, { currentDate: now, tz: "Europe/Madrid" })`, call `.prev()`, compute `now.getTime() - prev.toDate().getTime() < windowMs`. Strict `<` bound (decision B, 2026-05-17). Catch parse errors and return `false` after logging — invalid cron strings should not crash the whole scan.
+    - Re-export `TIMEZONE` from `web/lib/cron.ts` so consumers don't import both files (single source of truth for the TZ constant).
+
+  - [ ] 14.4 Implement `web/app/api/scheduler/tick/route.ts`:
+    ```ts
+    import "server-only";
+    import { NextRequest, NextResponse } from "next/server";
+    import { listBriefs, readBrief } from "@/lib/github";
+    import { parseBrief } from "@/lib/yaml";
+    import { isDue } from "@/lib/scheduler";
+    import { dispatchBriefRun } from "@/lib/dispatch";
+
+    export const runtime = "nodejs";
+    export const dynamic = "force-dynamic";
+    ```
+    - `POST` handler: read `Authorization` header, compare against `process.env.CRON_SECRET` constant-time (`crypto.timingSafeEqual`). 401 with empty body on mismatch.
+    - Enumerate briefs via `listBriefs()` → for each, `readBrief()` + `parseBrief()`. Skip briefs that fail to parse (log + continue — same pattern as `GET /api/briefs` today).
+    - For each parsed brief, evaluate `isDue(brief.schedule, now)`. Collect the `due` set.
+    - For each `due` brief, await `dispatchBriefRun(brief.slug)`. Collect `dispatched` (status === "ok") and `failures` (status === "error", capture `{ brief: slug, message }`).
+    - Emit `console.log(JSON.stringify({ event: "scheduler.tick", scanned, due, dispatched, failures, took_ms }))` before returning.
+    - Respond 200 with `{ scanned, due, dispatched, failures }` (JSON). Even when `failures.length > 0` — the tick itself succeeded, individual dispatch failures are surfaced in the body. Decision D, 2026-05-17.
+
+  - [ ] 14.5 Delete `.github/workflows/run-due-briefs.yml`. Delete `scripts/due_runner.py`. Keep `run-brief.yml` and `scripts/executor.py` exactly as they are — those remain the per-brief dispatch path that the new endpoint calls via `dispatchBriefRun`. Decision C, 2026-05-17 (same-PR atomic cutover).
+
+  - [ ] 14.6 Update `README.md`:
+    - Repository Layout section: remove the `due_runner.py` and `run-due-briefs.yml` lines.
+    - Replace the «A scheduled GitHub Actions workflow scans the briefs every 15 minutes» sentence with «A Vercel Cron tick every 5 minutes calls the web app's `/api/scheduler/tick` endpoint, which dispatches the due briefs via `run-brief.yml`.»
+    - Roadmap section: append `14.0 ✅ Scheduler reliability via Vercel Cron — replaces the GH Actions scanner.` (mark ✅ at completion).
+    - Env-vars list: document `CRON_SECRET` alongside the existing entries.
+
+  - [ ] 14.7 Smoke test on Vercel preview deployment (decision 2.A, 2026-05-17). Vercel Cron does NOT fire on previews, so this validates the endpoint logic only — the cron→endpoint wiring is validated post-merge against production.
+    1. `curl -X POST -H "Authorization: Bearer <CRON_SECRET>" https://<preview-url>/api/scheduler/tick` → 200 with JSON `{ scanned: N, due: [...], dispatched: [...], failures: [] }`. Confirm `scanned` matches the number of briefs in the repo.
+    2. Same `curl` without the `Authorization` header → 401 with empty body. With wrong secret → 401 with empty body.
+    3. Pick a brief whose `schedule` is `* * * * *` (every minute — temporarily edit one for the test) → confirm it appears in `due` and `dispatched` on the next curl. Revert the schedule afterwards.
+    4. Pick a brief whose `schedule` is far from now → confirm it stays out of `due`.
+    5. Open Vercel Function Logs → confirm one `scheduler.tick` JSON line per invocation with the same numbers as the response.
+    6. If any dispatch fails (e.g. temporarily corrupt `GITHUB_TOKEN`), confirm the failure appears in `failures[]` AND the response is still 200 AND the other briefs in `due` were still attempted.
+
+  - [ ] 14.8 Post-merge verification on production (decision 1.C, 2026-05-17): over the following 24h, capture the sidebar at each scheduled tick boundary (top of hour + :15 + :30 + :45) and confirm that briefs scheduled at those minutes arrive in Slack within their scheduled hour. Compare against the pre-fix table (PRD §4 «The problem» — `:15` was at "fa 6h", `:30` at "fa 5h"). Acceptance: every minute-precise schedule reports «captured fa < 1h» consistently. If the post-merge sidebar still shows multi-hour delays, follow the rollback path (PR revert) and re-investigate.
