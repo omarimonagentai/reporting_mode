@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BriefRowMenu } from "@/components/BriefRowMenu";
+import { DraftChip } from "@/components/DraftChip";
 import {
   Tooltip,
   TooltipContent,
@@ -77,7 +78,15 @@ function BriefRow({
     >
       <div className="flex items-center gap-1.5">
         <StatusIcon run={brief.run} />
-        <span className="min-w-0 flex-1 truncate">{brief.name}</span>
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            !brief.published && "opacity-60"
+          )}
+        >
+          {brief.name}
+        </span>
+        {!brief.published && <DraftChip />}
       </div>
       <RunMeta run={brief.run} />
     </Link>

@@ -528,18 +528,18 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - `getBriefList()` and `getBriefListWithRuns()` already parse each brief; just include `published` in the projected row shape.
     - No new fetch — `published` is in the same YAML body that `parseBrief` already produces.
 
-  - [ ] 16.9 New `web/components/DraftChip.tsx` (server component, no props or just `{ className? }` for layout adjustments).
+  - [x] 16.9 New `web/components/DraftChip.tsx` (server component, no props or just `{ className? }` for layout adjustments).
     - Renders the inline chip used by sidebar + `/schedule`: «Draft» in `font-mono text-[10px] text-zinc-500 bg-zinc-100 border border-zinc-200 rounded px-1 py-px`.
     - `shrink-0` baked into the default className so consumers don't have to remember; truncation behaviour around it is the consumer's responsibility (sidebar's `truncate` on the parent works as-is).
     - Pure presentational — no client hooks, no state.
 
-  - [ ] 16.10 `BriefSidebarList.tsx`: draft styling.
+  - [x] 16.10 `BriefSidebarList.tsx`: draft styling.
     - Add conditional `opacity-60` to the row wrapper when `!published` (using the existing `cn(...)` call site for the row).
     - Render `<DraftChip />` inline after the brief name and BEFORE the kebab placeholder, inside the same `<Link>` so the chip respects the row's hit area.
     - Existing tooltip on truncated names continues to wrap only the `<Link>`, not the chip or kebab — no change there.
     - The dot-status (success/failed/never-run) and token badge stay at FULL opacity — they describe the last run, which is meaningful even for drafts. Apply `opacity-60` to the name + chip only, not to those secondary elements.
 
-  - [ ] 16.11 `web/app/schedule/page.tsx` / `ScheduleTable`: draft styling.
+  - [x] 16.11 `web/app/schedule/page.tsx` / `ScheduleTable`: draft styling.
     - The «Brief» column: same `opacity-60` + `<DraftChip />` treatment as the sidebar (16.10). The link to `/briefs/<filename>` remains clickable at full hit area.
     - The «Proper enviament» column for draft rows: wrap the cell in a shadcn `<Tooltip>` whose body is «Aquest brief està despublicat — el cron no s'aplicarà fins que es publiqui». Cell content stays the same (the computed next-fire time + relative «en Xh») but renders at `opacity-60` to match the visual rhythm.
     - The «Schedule» and «Última run» columns: unchanged styling — same data either way; the user might be referring to «when was this draft last run during testing» which is real information.
