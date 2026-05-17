@@ -1,4 +1,5 @@
 name: Check update tablas en snowflake
+published: false
 schedule: 0 * * * *
 slack_channel: test-github-oriol
 sources:
