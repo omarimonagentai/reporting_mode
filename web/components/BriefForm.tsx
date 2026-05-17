@@ -50,6 +50,12 @@ type EditProps = {
   // already in edit mode so the user doesn't have to click Edit first.
   // Used by the sidebar kebab's Edit action. Defaults to "view".
   initialMode?: FormMode;
+  // Slot for page-level brief actions (Publish/Unpublish, Run Now,
+  // History, etc.) so they render on the SAME row as the form's
+  // Edit / Cancel + Save buttons — left side form actions, right
+  // side brief actions. Lets the detail page header stay just the
+  // title.
+  briefActions?: React.ReactNode;
 };
 
 type CreateProps = {
@@ -60,6 +66,8 @@ type CreateProps = {
   // string). Empty / undefined means no prefill — start from the
   // empty brief.
   prefillReportToken?: string;
+  // Same slot as on EditProps for create-flow consistency.
+  briefActions?: React.ReactNode;
 };
 
 type Props = EditProps | CreateProps;
@@ -668,10 +676,15 @@ export function BriefForm(props: Props) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-end gap-3">
-          {actionButtons}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">{actionButtons}</div>
+          {props.briefActions && (
+            <div className="flex flex-wrap items-center gap-2">
+              {props.briefActions}
+            </div>
+          )}
         </div>
-        <div className="flex justify-end">{validityHint}</div>
+        {validityHint}
       </div>
 
       <div>

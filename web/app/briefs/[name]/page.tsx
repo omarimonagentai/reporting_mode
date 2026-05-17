@@ -38,36 +38,11 @@ export default async function BriefDetailPage({ params, searchParams }: Params) 
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-10">
-      <div className="flex items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="min-w-0 truncate text-2xl font-semibold text-zinc-900">
-              {brief.name}
-            </h1>
-            <PublishedBadge
-              published={brief.published}
-              className="shrink-0"
-            />
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <PublishToggleButton
-            filename={name}
-            published={brief.published}
-          />
-          <RunNowButton
-            mode="existing"
-            filename={name}
-            published={brief.published}
-            briefName={brief.name}
-          />
-          <HistoryDrawerButton
-            filename={name}
-            briefName={brief.name}
-            slackChannel={brief.slack_channel}
-            initialOpen={initialHistory}
-          />
-        </div>
+      <div className="flex items-center gap-2">
+        <h1 className="min-w-0 truncate text-2xl font-semibold text-zinc-900">
+          {brief.name}
+        </h1>
+        <PublishedBadge published={brief.published} className="shrink-0" />
       </div>
 
       <div className="mt-6">
@@ -80,6 +55,26 @@ export default async function BriefDetailPage({ params, searchParams }: Params) 
           initialBrief={brief}
           initialSha={sha}
           initialMode={initialEdit ? "edit" : "view"}
+          briefActions={
+            <>
+              <PublishToggleButton
+                filename={name}
+                published={brief.published}
+              />
+              <RunNowButton
+                mode="existing"
+                filename={name}
+                published={brief.published}
+                briefName={brief.name}
+              />
+              <HistoryDrawerButton
+                filename={name}
+                briefName={brief.name}
+                slackChannel={brief.slack_channel}
+                initialOpen={initialHistory}
+              />
+            </>
+          }
         />
       </div>
     </div>
