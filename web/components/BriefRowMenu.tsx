@@ -31,13 +31,14 @@ export function BriefRowMenu({ filename }: { filename: string }) {
           // default; `focus-visible:` keeps it reachable by keyboard;
           // `data-[state=open]:` pins it visible while the popover is open
           // so it doesn't blink away when the cursor leaves the row.
+          //
+          // No click-handler interception here: `preventDefault()` on a
+          // Radix `asChild` trigger cancels Radix's own open handler, so
+          // the popover never appears. The kebab is a DOM sibling of the
+          // sidebar row's <Link>, not a descendant — clicks don't bubble
+          // to the link by themselves, so `stopPropagation()` isn't
+          // needed either.
           className="flex size-7 shrink-0 items-center justify-center rounded-md text-zinc-500 opacity-0 transition-opacity hover:bg-zinc-200 hover:text-zinc-900 focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
-          // The kebab sits inside the row's anchor element; without this
-          // a click on the kebab would also navigate to the brief.
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
         >
           <MoreVertical className="size-4" />
         </button>
