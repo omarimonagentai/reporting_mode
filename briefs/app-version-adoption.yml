@@ -1,7 +1,7 @@
 name: App Version Adoption 2 CH00
-schedule: 0 * * * *
+schedule: 0 10 * * *
 slack_channel: test-github-oriol
-reference_link: https://omarimonagentai.github.io/cajut/?ctrl=pulse-presenter-7k2mq
+reference_link: https://app.mode.com/ecooltra706/reports/7340a3e1f57c
 sources:
   - mode_report_token: 7b89f8a2f8d8
     queries:
@@ -30,7 +30,7 @@ prompt: |
 
   Reglas estrictas:
   - Porcentajes con un decimal (ej. 67.3%).
-  - Escriu en català
+  - Responde en castellano
   - Lenguaje directo, sin introducciones genéricas ("En este informe...", "Como podemos observar...") ni conclusiones.
   - Si hay más de 5 versiones con menos del 2% de adopción, agrúpalas como "otras versiones residuales" indicando el % total agrupado.
   - No inventes datos. Si una versión no aparece en la fecha más reciente, no la menciones.
