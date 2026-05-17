@@ -10,7 +10,7 @@ A small, repo-as-database platform for scheduled Slack briefs built on top of [M
   - Where to publish the result (a Slack channel).
   - A natural-language prompt that an LLM (Groq) turns into the final message.
   - Optionally, a `reference_link` URL appended as a clickable line to the Slack message.
-- A scheduled GitHub Actions workflow scans the briefs every 15 minutes and dispatches the ones whose cron is due.
+- A Vercel Cron tick every 5 minutes calls the web app's `/api/scheduler/tick` endpoint, which scans the briefs and dispatches the ones whose cron is due.
 - A Next.js web app on Vercel lets non-engineer users browse, create, edit and delete briefs through a form UI; the underlying YAML files are committed back to the repo via the GitHub Contents API.
 
 ## Repository layout
@@ -19,11 +19,11 @@ A small, repo-as-database platform for scheduled Slack briefs built on top of [M
 briefs/                       YAML brief definitions (one file per brief)
 scripts/
   executor.py                 Runs a single brief: fetch Mode data → Groq prompt → Slack message + CSVs
-  due_runner.py               Scans briefs/, dispatches the ones whose cron is due
 .github/workflows/
   run-brief.yml               Manual / API-dispatched single-brief run; uploads .run.json artifact
-  run-due-briefs.yml          15-min scheduled scan that dispatches due briefs
 web/                          Next.js 16 App Router web UI deployed on Vercel
+  app/api/scheduler/tick      POST endpoint called by Vercel Cron every 5 min; dispatches due briefs
+  vercel.json                 Vercel Cron declaration (*/5 * * * * → /api/scheduler/tick)
 tasks/                        PRD + task list driving the current iteration
 ```
 
@@ -35,6 +35,7 @@ tasks/                        PRD + task list driving the current iteration
   - `GITHUB_TOKEN` — fine-grained PAT (`vercel-reporting-mode`) with `Contents: Read & write` + `Metadata: Read-only` on this repo. Will need `Actions: Read & write` once task 6.0 (Run Now button) lands.
   - `GITHUB_OWNER`, `GITHUB_REPO` — `omarimonagentai` / `reporting_mode`.
   - `SLACK_BOT_TOKEN` — for the channel picker (`/api/channels`).
+  - `CRON_SECRET` — 32+ byte random string (`openssl rand -hex 32`) shared between Vercel Cron and `/api/scheduler/tick`. Vercel Cron auto-injects it as the `Authorization: Bearer …` header; the endpoint rejects mismatches with 401.
 
 ## Python executor
 
