@@ -489,13 +489,13 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - `web/lib/yaml.ts:serializeBrief`: emit `published: <bool>` explicitly in every YAML, never omit. Insert the key into the canonical `EMITTED_KEYS` order **immediately after `name`** so the field is the first thing the human reader sees.
     - `EMPTY_BRIEF` (the default used by `/briefs/new`): `published: false`. Drafts-by-default for new briefs (decision 2.B).
 
-  - [ ] 16.2 Bulk migration commit: assign `published: true` to every existing brief in `briefs/*.yml`.
+  - [x] 16.2 Bulk migration commit: assign `published: true` to every existing brief in `briefs/*.yml`.
     - One-shot script `scripts/add_published_field.py` that walks `briefs/*.yml`, parses with `pyyaml`, sets the key idempotently (only adds when missing, never overwrites), writes back preserving key order via `pyyaml`'s `sort_keys=False`. Run locally with `python scripts/add_published_field.py`.
     - **Delete the script in the same PR** — it's single-use migration code, not operational. The migration is in the git history forever, but the file doesn't stay in the repo.
     - Commit message: «chore(briefs): bulk-assign `published: true` to existing briefs (rollout for task 16.0)».
     - Verification: `grep -L "^published:" briefs/*.yml` returns zero lines. The migration commit lands BEFORE the scheduler filter (16.3) so there's no window where existing briefs read as Draft.
 
-  - [ ] 16.3 Scheduler filter + observability update at `web/app/api/scheduler/tick/route.ts`.
+  - [x] 16.3 Scheduler filter + observability update at `web/app/api/scheduler/tick/route.ts`.
     - Add `const candidates = briefs.filter((b) => b.published !== false);` immediately after the `parseBrief` loop and BEFORE the `isDue()` evaluation.
     - Compute `const skipped_draft = briefs.length - candidates.length;`.
     - Extend the JSON response shape to include `skipped_draft` (alongside `scanned`, `due`, `dispatched`, `failures`).
