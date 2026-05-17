@@ -52,7 +52,7 @@ export async function* runDryRun(
     let lastUsage: TokenUsage = { input: 0, output: 0, total: 0 };
     for await (const chunk of streamChatCompletion({
       systemPrompt: brief.prompt,
-      userMessage,
+      messages: [{ role: "user", content: userMessage }],
       signal,
     })) {
       if (chunk.kind === "delta") {

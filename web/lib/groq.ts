@@ -27,7 +27,7 @@ function getGroqClient(): Groq {
   if (!apiKey) {
     throw new Error(
       "GROQ_API_KEY is not set. Add it to the Vercel env vars before " +
-        "calling dry-run."
+        "calling any GROQ-backed endpoint."
     );
   }
   cachedClient = new Groq({ apiKey });
@@ -38,13 +38,19 @@ function getGroqClient(): Groq {
  * Stream a chat completion from GROQ. Yields per-chunk deltas as they
  * arrive, then a final `done` chunk with token usage.
  *
- * Honours the AbortSignal — when the caller aborts (e.g. the dry-run
- * Sheet's Cancel button), the SDK closes the HTTP connection and the
- * iterator exits cleanly without yielding further chunks.
+ * Honours the AbortSignal — when the caller aborts, the SDK closes
+ * the HTTP connection and the iterator exits cleanly without
+ * yielding further chunks.
+ *
+ * Accepts a `messages` array (multi-turn) so both the single-shot
+ * dry-run consumer (task 18.0, one user message) and the chat-style
+ * Prompt Assistant (task 19.0, full conversation history) can call
+ * the same wrapper. Callers with a single user message wrap it as
+ * `[{ role: "user", content: userMessage }]`.
  */
 export async function* streamChatCompletion(args: {
   systemPrompt: string;
-  userMessage: string;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
   signal?: AbortSignal;
 }): AsyncGenerator<StreamChunk> {
   const client = getGroqClient();
@@ -56,7 +62,7 @@ export async function* streamChatCompletion(args: {
       stream: true,
       messages: [
         { role: "system", content: args.systemPrompt },
-        { role: "user", content: args.userMessage },
+        ...args.messages,
       ],
     },
     { signal: args.signal }
@@ -71,7 +77,7 @@ export async function* streamChatCompletion(args: {
     // GROQ exposes the final usage on the LAST chunk under
     // `x_groq.usage` (mirrors OpenAI's `usage` placement). Project
     // defensively — older SDK versions may surface it under a
-    // different field; the dry-run still works without usage, the
+    // different field; the consumer still works without usage, the
     // numbers just stay at 0.
     const groqChunk = chunk as unknown as {
       x_groq?: {
