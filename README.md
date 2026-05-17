@@ -8,7 +8,7 @@ A small, repo-as-database platform for scheduled Slack briefs built on top of [M
   - Where to pull data from (a Mode report + one or more queries).
   - When to run (a 5-field cron expression interpreted in `Europe/Madrid`).
   - Where to publish the result (a Slack channel).
-  - A natural-language prompt that an LLM (Groq) turns into the final message.
+  - A natural-language prompt that an LLM (Groq) turns into the final message. **Optional**: leaving the prompt empty switches the executor into "raw mode" — no GROQ call, the Slack message is a short header and every query's CSV gets attached. Use this for «just dump this Mode query to Slack» pipelines with zero LLM cost.
   - Optionally, a `reference_link` URL appended as a clickable line to the Slack message.
 - A Vercel Cron tick every 5 minutes calls the web app's `/api/scheduler/tick` endpoint, which scans the briefs and dispatches the ones whose cron is due.
 - A Next.js web app on Vercel lets non-engineer users browse, create, edit and delete briefs through a form UI; the underlying YAML files are committed back to the repo via the GitHub Contents API.

@@ -356,20 +356,30 @@ def slugify_for_filename(text):
     return re.sub(r"[^A-Za-z0-9_-]+", "_", text).strip("_") or "data"
 
 
-def post_brief_to_slack(brief, sources_data, brief_text):
+def post_brief_to_slack(brief, sources_data, brief_text, raw_mode=False):
     """Post the brief to Slack and optionally attach CSVs as a thread reply.
 
     Uses chat.postMessage for the main message (Bot Token required) and
     files_upload_v2 for the CSV attachments.
+
+    When `raw_mode=True` (caller detected an empty prompt and skipped
+    the GROQ call), the message body is a short header line and EVERY
+    query's CSV gets attached regardless of the per-query `csv` flag —
+    the brief's only purpose in that mode is to dump data, so all
+    available data is shipped.
     """
     channel = brief.get("slack_channel")
     if not channel:
         sys.exit("ERROR: el brief no té camp 'slack_channel'.")
 
     client = get_slack_client()
-    formatted = markdown_to_slack(brief_text)
     today_str = date.today().strftime("%d/%m/%Y")
-    body = f"📊 *{brief['name']} — {today_str}*\n\n{formatted}"
+
+    if raw_mode:
+        body = f"📎 *{brief['name']} — {today_str}* — volcat de dades"
+    else:
+        formatted = markdown_to_slack(brief_text)
+        body = f"📊 *{brief['name']} — {today_str}*\n\n{formatted}"
 
     # Optional reference link: appended on its own line at the end of the
     # message, rendered as a clickable Slack link.
@@ -389,7 +399,9 @@ def post_brief_to_slack(brief, sources_data, brief_text):
     csv_queue = []
     for _source, _title, results, csv_by_name in sources_data:
         for query_name, rows in results.items():
-            if csv_by_name.get(query_name):
+            # Raw mode: attach every query's CSV unconditionally. LLM mode:
+            # respect the per-query `csv` flag the user set in the YAML.
+            if raw_mode or csv_by_name.get(query_name):
                 csv_queue.append((query_name, rows))
 
     if not csv_queue:
@@ -521,14 +533,26 @@ def main():
             title, results, csv_by_name = fetch_source(auth, source)
             sources_data.append((source, title, results, csv_by_name))
 
-        print(f"-> Generant brief amb {LLM_MODEL}...")
-        user_message = build_user_message(sources_data)
-        brief_text, usage = generate_brief(brief["prompt"], user_message)
-        state["tokens"] = usage
-        print(
-            f"   tokens: input={usage['input']} output={usage['output']} "
-            f"total={usage['total']}"
-        )
+        # Empty prompt → "raw mode": no GROQ call, the Slack message
+        # is a short header and every query's CSV gets attached. Zero
+        # LLM cost. Decided with user 2026-05-17 to provide a no-LLM
+        # data-distribution path.
+        prompt = (brief.get("prompt") or "").strip()
+        raw_mode = not prompt
+
+        if raw_mode:
+            print("-> Mode RAW (prompt buit): saltant GROQ, només CSVs.")
+            brief_text = "[Raw mode — prompt buit, sense crida a LLM]"
+            state["tokens"] = {"input": 0, "output": 0, "total": 0}
+        else:
+            print(f"-> Generant brief amb {LLM_MODEL}...")
+            user_message = build_user_message(sources_data)
+            brief_text, usage = generate_brief(prompt, user_message)
+            state["tokens"] = usage
+            print(
+                f"   tokens: input={usage['input']} output={usage['output']} "
+                f"total={usage['total']}"
+            )
 
         # Best-effort: a write failure here (disk full, permissions) must
         # NOT block the Slack post. The .run.json record continues to be
@@ -544,13 +568,13 @@ def main():
 
         print("")
         print("=" * 70)
-        print("OUTPUT")
+        print("OUTPUT" if not raw_mode else "OUTPUT (raw mode)")
         print("=" * 70)
         print(brief_text)
         print("=" * 70)
         print("")
 
-        post_brief_to_slack(brief, sources_data, brief_text)
+        post_brief_to_slack(brief, sources_data, brief_text, raw_mode=raw_mode)
 
         state["status"] = "success"
         state["error"] = None

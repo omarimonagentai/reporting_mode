@@ -29,7 +29,12 @@ export const briefSchema = z.object({
       "El Reference link ha de començar amb http:// o https://"
     ),
   sources: z.array(sourceSchema).min(1, "Cal almenys un Source"),
-  prompt: z.string().min(1, "El Prompt és obligatori"),
+  // Optional. An empty prompt switches the executor into "raw mode":
+  // no GROQ call, the Slack message is just a short header line
+  // and every query's CSV gets attached automatically. Useful as a
+  // zero-LLM-cost pipeline for «just dump this Mode query to Slack»
+  // use cases.
+  prompt: z.string(),
   owner_email: z.string().email().nullable().optional(),
 });
 
