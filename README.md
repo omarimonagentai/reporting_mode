@@ -22,7 +22,7 @@ scripts/
 .github/workflows/
   run-brief.yml               Manual / API-dispatched single-brief run; uploads .run.json artifact
 web/                          Next.js 16 App Router web UI deployed on Vercel
-  app/api/scheduler/tick      POST endpoint called by Vercel Cron every 5 min; dispatches due briefs
+  app/api/scheduler/tick      GET endpoint called by Vercel Cron every 5 min; dispatches due briefs
   vercel.json                 Vercel Cron declaration (*/5 * * * * → /api/scheduler/tick)
 tasks/                        PRD + task list driving the current iteration
 ```
@@ -99,4 +99,4 @@ The active iteration is tracked in `tasks/tasks-online-brief-platform.md`. Major
 - 12.0 ✅ Brief output history — UI surfacing (`/history` page + per-brief drawer on the detail view).
 - 13.0 ⏳ Authentication & access wall — magic-link login + domain restriction.
 - 14.0 ✅ Scheduler reliability via Vercel Cron — replaces the GH Actions scanner with a `*/5` cron hitting `/api/scheduler/tick`.
-- 15.0 ⏳ Sidebar brief actions menu — per-row kebab exposing Edit, Run Now, History without navigating.
+- 15.0 ✅ Sidebar brief actions menu — per-row kebab exposing Edit, Run Now, History without navigating.
