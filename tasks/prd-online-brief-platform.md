@@ -90,6 +90,7 @@ T4. Adding the Run Now button requires extending the platform's GitHub PAT scope
     - The **status** of the last execution (success / failed / never run), color-coded.
     - The **tokens consumed** in that last execution, split as **input** and **output** if available, otherwise total.
 22. If the brief has never run, the section MUST display "Mai executat" (or equivalent) rather than empty.
+22a. **Artifact id placement** (updated 2026-05-17): the GitHub Actions artifact name backing the last run (e.g. `run-analitza-els-vlt-25977621231`) MUST NOT clutter the headline card alongside status/timestamp/tokens. Move it to a small «Debug info» block pinned to the bottom of the brief detail page, in font-mono `text-zinc-400` text, only rendered when a run record is available. Useful for the occasional case of opening the artifact directly on GitHub Actions; invisible to anyone not specifically looking for it. Implementation: a tiny `BriefDebugFooter` client component that fetches `/api/runs/[brief]` independently of the card.
 
 ### Calendar View
 
