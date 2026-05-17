@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" font-family="Inter, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+  <!-- ============== DEFS ============== -->
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#eef2f7"/>
+    </linearGradient>
+
+    <!-- Card gradients -->
+    <linearGradient id="webCard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <linearGradient id="repoCard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fffdf5"/>
+      <stop offset="100%" stop-color="#fef3c7"/>
+    </linearGradient>
+    <linearGradient id="execCard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0f9ff"/>
+      <stop offset="100%" stop-color="#dbeafe"/>
+    </linearGradient>
+    <linearGradient id="dataCard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0fdf4"/>
+      <stop offset="100%" stop-color="#dcfce7"/>
+    </linearGradient>
+    <linearGradient id="llmCard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fdf4ff"/>
+      <stop offset="100%" stop-color="#f5d0fe"/>
+    </linearGradient>
+    <linearGradient id="slackCard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fef2f2"/>
+      <stop offset="100%" stop-color="#fecaca"/>
+    </linearGradient>
+
+    <!-- Soft drop shadow -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+      <feOffset dx="0" dy="2" result="off"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.18"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Arrowheads -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b45309"/>
+    </marker>
+  </defs>
+
+  <!-- ============== BACKGROUND ============== -->
+  <rect width="1400" height="900" fill="url(#bg)"/>
+
+  <!-- ============== HEADER ============== -->
+  <text x="60" y="60" font-size="32" font-weight="700" fill="#0f172a">Cooltra Reporting Platform</text>
+  <text x="60" y="90" font-size="16" fill="#475569">Insights operacionals automatitzats: del data warehouse a Slack, programats per qualsevol persona del negoci.</text>
+
+  <!-- Subtle divider -->
+  <line x1="60" y1="110" x2="1340" y2="110" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- ============== SWIMLANE LABELS ============== -->
+  <text x="60" y="150" font-size="12" font-weight="600" fill="#64748b" letter-spacing="2">USUARIS</text>
+  <text x="60" y="320" font-size="12" font-weight="600" fill="#64748b" letter-spacing="2">CONTROL PLANE</text>
+  <text x="60" y="540" font-size="12" font-weight="600" fill="#64748b" letter-spacing="2">EXECUCIÓ</text>
+  <text x="60" y="755" font-size="12" font-weight="600" fill="#64748b" letter-spacing="2">DESTINACIÓ</text>
+
+  <!-- ============== USERS LAYER ============== -->
+  <g filter="url(#shadow)">
+    <rect x="180" y="130" width="280" height="80" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+    <circle cx="220" cy="170" r="18" fill="#e0e7ff"/>
+    <text x="220" y="176" font-size="20" text-anchor="middle">👥</text>
+    <text x="252" y="160" font-size="15" font-weight="600" fill="#0f172a">Equips de negoci</text>
+    <text x="252" y="180" font-size="12" fill="#475569">Operacions, Producte, Finances</text>
+    <text x="252" y="196" font-size="11" fill="#64748b">Defineixen i editen briefs sense codi</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="940" y="130" width="280" height="80" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+    <circle cx="980" cy="170" r="18" fill="#fef3c7"/>
+    <text x="980" y="176" font-size="20" text-anchor="middle">⚙️</text>
+    <text x="1012" y="160" font-size="15" font-weight="600" fill="#0f172a">Enginyeria de dades</text>
+    <text x="1012" y="180" font-size="12" fill="#475569">Manté el catàleg + l'executor</text>
+    <text x="1012" y="196" font-size="11" fill="#64748b">Edita YAML / codi via PR</text>
+  </g>
+
+  <!-- ============== CONTROL PLANE ============== -->
+
+  <!-- Web app (Next.js) -->
+  <g filter="url(#shadow)">
+    <rect x="120" y="240" width="340" height="200" rx="14" fill="url(#webCard)" stroke="#94a3b8"/>
+    <rect x="120" y="240" width="340" height="34" rx="14" fill="#0f172a"/>
+    <rect x="120" y="260" width="340" height="14" fill="#0f172a"/>
+    <text x="140" y="262" font-size="14" font-weight="700" fill="#ffffff">Web App  ·  Next.js 16 + React 19</text>
+    <text x="450" y="262" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="end">Vercel</text>
+
+    <text x="140" y="300" font-size="13" font-weight="600" fill="#0f172a">Interfície sense codi per briefs</text>
+
+    <g font-size="12" fill="#334155">
+      <text x="140" y="324">• Catàleg Mode (reports + queries)</text>
+      <text x="140" y="344">• Editor visual de cron i prompt</text>
+      <text x="140" y="364">• Calendari + història d'execucions</text>
+      <text x="140" y="384">• Botó “Run now” (workflow_dispatch)</text>
+      <text x="140" y="404">• Tailwind v4 · shadcn · RHF · Zod</text>
+      <text x="140" y="424" fill="#64748b" font-style="italic">Magic-link auth + domain wall (en curs)</text>
+    </g>
+  </g>
+
+  <!-- Repo as DB -->
+  <g filter="url(#shadow)">
+    <rect x="530" y="240" width="340" height="200" rx="14" fill="url(#repoCard)" stroke="#d97706"/>
+    <rect x="530" y="240" width="340" height="34" rx="14" fill="#92400e"/>
+    <rect x="530" y="260" width="340" height="14" fill="#92400e"/>
+    <text x="550" y="262" font-size="14" font-weight="700" fill="#ffffff">Repo-as-Database  ·  GitHub</text>
+    <text x="860" y="262" font-size="11" font-weight="600" fill="#fde68a" text-anchor="end">Contents API</text>
+
+    <text x="550" y="300" font-size="13" font-weight="600" fill="#0f172a">Cada brief = un YAML versionat</text>
+
+    <!-- mock YAML -->
+    <rect x="550" y="312" width="300" height="118" rx="6" fill="#fffbea" stroke="#fcd34d"/>
+    <g font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#7c2d12">
+      <text x="562" y="330">name: app-version-adoption</text>
+      <text x="562" y="346">cron: "0 9 * * 1"   # dl 09:00 CET</text>
+      <text x="562" y="362">mode_report: 12345</text>
+      <text x="562" y="378">queries: [adoption_by_version]</text>
+      <text x="562" y="394">slack_channel: "#producte"</text>
+      <text x="562" y="410">prompt: "Resumeix l'adopció…"</text>
+      <text x="562" y="426">reference_link: https://...</text>
+    </g>
+  </g>
+
+  <!-- GitHub Actions scheduler -->
+  <g filter="url(#shadow)">
+    <rect x="940" y="240" width="340" height="200" rx="14" fill="url(#webCard)" stroke="#94a3b8"/>
+    <rect x="940" y="240" width="340" height="34" rx="14" fill="#0f172a"/>
+    <rect x="940" y="260" width="340" height="14" fill="#0f172a"/>
+    <text x="960" y="262" font-size="14" font-weight="700" fill="#ffffff">Scheduler  ·  GitHub Actions</text>
+    <text x="1270" y="262" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="end">cron 15 min</text>
+
+    <text x="960" y="300" font-size="13" font-weight="600" fill="#0f172a">Orquestració sense servidors</text>
+
+    <g font-size="12" fill="#334155">
+      <text x="960" y="324">• <tspan font-family="ui-monospace, Menlo, monospace">due_runner.py</tspan> escaneja briefs/</text>
+      <text x="960" y="344">• Compara cron (Europe/Madrid) amb now()</text>
+      <text x="960" y="364">• Dispatch d'una <tspan font-style="italic">run-brief.yml</tspan> per brief</text>
+      <text x="960" y="384">• Artefacte <tspan font-family="ui-monospace, Menlo, monospace">.run.json</tspan> per cada execució</text>
+      <text x="960" y="404" fill="#64748b">→ tokens, durada, estat, error</text>
+    </g>
+  </g>
+
+  <!-- ============== EXECUTION LAYER ============== -->
+
+  <!-- Python executor -->
+  <g filter="url(#shadow)">
+    <rect x="475" y="565" width="450" height="155" rx="14" fill="url(#execCard)" stroke="#2563eb"/>
+    <rect x="475" y="565" width="450" height="34" rx="14" fill="#1e3a8a"/>
+    <rect x="475" y="585" width="450" height="14" fill="#1e3a8a"/>
+    <text x="495" y="587" font-size="14" font-weight="700" fill="#ffffff">Executor  ·  Python (scripts/executor.py)</text>
+    <text x="915" y="587" font-size="11" font-weight="600" fill="#bfdbfe" text-anchor="end">ephemeral runner</text>
+
+    <text x="495" y="625" font-size="13" font-weight="600" fill="#0f172a">Pipeline d'una sola execució</text>
+
+    <!-- Steps -->
+    <g font-size="12" fill="#1e293b">
+      <rect x="495" y="640" width="125" height="56" rx="8" fill="#ffffff" stroke="#93c5fd"/>
+      <text x="557" y="660" text-anchor="middle" font-weight="600">1 · Fetch</text>
+      <text x="557" y="678" text-anchor="middle" font-size="11" fill="#475569">Mode API</text>
+      <text x="557" y="692" text-anchor="middle" font-size="11" fill="#475569">report + queries</text>
+
+      <rect x="635" y="640" width="125" height="56" rx="8" fill="#ffffff" stroke="#93c5fd"/>
+      <text x="697" y="660" text-anchor="middle" font-weight="600">2 · Resumir</text>
+      <text x="697" y="678" text-anchor="middle" font-size="11" fill="#475569">Groq LLM</text>
+      <text x="697" y="692" text-anchor="middle" font-size="11" fill="#475569">prompt + CSV</text>
+
+      <rect x="775" y="640" width="135" height="56" rx="8" fill="#ffffff" stroke="#93c5fd"/>
+      <text x="842" y="660" text-anchor="middle" font-weight="600">3 · Publicar</text>
+      <text x="842" y="678" text-anchor="middle" font-size="11" fill="#475569">Slack message</text>
+      <text x="842" y="692" text-anchor="middle" font-size="11" fill="#475559">+ CSVs adjunts</text>
+    </g>
+  </g>
+
+  <!-- ============== DATA + LLM + SLACK ============== -->
+
+  <!-- Mode Analytics -->
+  <g filter="url(#shadow)">
+    <rect x="120" y="565" width="280" height="155" rx="14" fill="url(#dataCard)" stroke="#16a34a"/>
+    <circle cx="160" cy="605" r="22" fill="#bbf7d0"/>
+    <text x="160" y="612" font-size="22" text-anchor="middle">📊</text>
+    <text x="195" y="600" font-size="14" font-weight="700" fill="#0f172a">Mode Analytics</text>
+    <text x="195" y="618" font-size="11" fill="#475569">Data warehouse del negoci</text>
+    <g font-size="12" fill="#334155">
+      <text x="140" y="650">• Reports + queries de SQL</text>
+      <text x="140" y="670">• Catàleg navegable des de la web</text>
+      <text x="140" y="690">• Font única de veritat (KPIs)</text>
+    </g>
+  </g>
+
+  <!-- Groq LLM -->
+  <g filter="url(#shadow)">
+    <rect x="1000" y="565" width="280" height="155" rx="14" fill="url(#llmCard)" stroke="#a21caf"/>
+    <circle cx="1040" cy="605" r="22" fill="#f5d0fe"/>
+    <text x="1040" y="612" font-size="22" text-anchor="middle">🧠</text>
+    <text x="1075" y="600" font-size="14" font-weight="700" fill="#0f172a">Groq LLM</text>
+    <text x="1075" y="618" font-size="11" fill="#475569">Inferència ultra-ràpida i barata</text>
+    <g font-size="12" fill="#334155">
+      <text x="1020" y="650">• Prompt natural per brief</text>
+      <text x="1020" y="670">• Transforma dades → narrativa</text>
+      <text x="1020" y="690">• Tokens monitoritzats per cost</text>
+    </g>
+  </g>
+
+  <!-- Slack destination -->
+  <g filter="url(#shadow)">
+    <rect x="475" y="770" width="450" height="90" rx="14" fill="url(#slackCard)" stroke="#dc2626"/>
+    <circle cx="515" cy="815" r="22" fill="#fecaca"/>
+    <text x="515" y="822" font-size="22" text-anchor="middle">💬</text>
+    <text x="550" y="805" font-size="14" font-weight="700" fill="#0f172a">Slack  ·  canals del negoci</text>
+    <text x="550" y="824" font-size="12" fill="#334155">El brief arriba on l'equip ja viu — sense dashboards a obrir, sense correus.</text>
+    <text x="550" y="842" font-size="11" fill="#64748b">Adjunts CSV + reference_link clicable per al detall.</text>
+  </g>
+
+  <!-- ============== ARROWS ============== -->
+
+  <!-- Users → Web -->
+  <path d="M320 210 L290 240" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="305" y="232" font-size="10" fill="#64748b">edita</text>
+
+  <!-- Engineers → Scheduler -->
+  <path d="M1080 210 L1110 240" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="1095" y="232" font-size="10" fill="#64748b">PR / config</text>
+
+  <!-- Web ↔ Repo (Contents API, bidirectional) -->
+  <path d="M460 330 L530 330" stroke="#2563eb" stroke-width="2.5" fill="none" marker-end="url(#arrowBlue)" marker-start="url(#arrowBlue)"/>
+  <text x="495" y="322" font-size="11" font-weight="600" fill="#2563eb" text-anchor="middle">read / write</text>
+  <text x="495" y="346" font-size="10" fill="#64748b" text-anchor="middle">GitHub Contents API</text>
+
+  <!-- Repo → Scheduler -->
+  <path d="M870 360 L940 360" stroke="#b45309" stroke-width="2.5" fill="none" marker-end="url(#arrowAmber)"/>
+  <text x="905" y="352" font-size="11" font-weight="600" fill="#b45309" text-anchor="middle">scan</text>
+
+  <!-- Scheduler → Executor (dispatch) -->
+  <path d="M1110 440 L1110 500 L760 500 L760 565" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-dasharray="6 4"/>
+  <text x="930" y="492" font-size="11" font-weight="600" fill="#475569">dispatch workflow_run</text>
+
+  <!-- Web → Executor (Run now) -->
+  <path d="M290 440 L290 500 L640 500 L640 565" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-dasharray="6 4"/>
+  <text x="465" y="492" font-size="11" font-weight="600" fill="#475569" text-anchor="middle">“Run now” (manual dispatch)</text>
+
+  <!-- Executor ↔ Mode -->
+  <path d="M475 642 L400 642" stroke="#16a34a" stroke-width="2.5" fill="none" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+  <text x="437" y="634" font-size="11" font-weight="600" fill="#16a34a" text-anchor="middle">SQL results</text>
+
+  <!-- Executor ↔ Groq -->
+  <path d="M925 642 L1000 642" stroke="#a21caf" stroke-width="2.5" fill="none" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+  <text x="962" y="634" font-size="11" font-weight="600" fill="#a21caf" text-anchor="middle">prompt / text</text>
+
+  <!-- Executor → Slack -->
+  <path d="M700 720 L700 770" stroke="#dc2626" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+  <text x="710" y="748" font-size="11" font-weight="600" fill="#dc2626">post</text>
+
+  <!-- Executor → Repo (run artifact) -->
+  <path d="M820 565 L820 480 L700 480 L700 440" stroke="#b45309" stroke-width="2" fill="none" marker-end="url(#arrowAmber)" stroke-dasharray="4 4"/>
+  <text x="828" y="510" font-size="10" fill="#b45309">.run.json artifact</text>
+
+  <!-- ============== INVESTOR VALUE BOX ============== -->
+  <g filter="url(#shadow)">
+    <rect x="60" y="770" width="380" height="90" rx="14" fill="#0f172a"/>
+    <text x="80" y="798" font-size="13" font-weight="700" fill="#fbbf24" letter-spacing="1.5">PER QUÈ ÉS DEFENSABLE</text>
+    <g font-size="12" fill="#e2e8f0">
+      <text x="80" y="820">✓ Zero infra: GitHub + Vercel + APIs → marge brut alt</text>
+      <text x="80" y="838">✓ Repo-as-DB: auditabilitat + rollback gratuïts</text>
+      <text x="80" y="856">✓ Self-service per a negoci, sense bloquejar eng.</text>
+    </g>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="960" y="770" width="380" height="90" rx="14" fill="#0f172a"/>
+    <text x="980" y="798" font-size="13" font-weight="700" fill="#fbbf24" letter-spacing="1.5">CAP A ON ESCALA</text>
+    <g font-size="12" fill="#e2e8f0">
+      <text x="980" y="820">→ Multi-tenant + auth (en curs)</text>
+      <text x="980" y="838">→ Multi-canal (email, Teams, WhatsApp Bus.)</text>
+      <text x="980" y="856">→ Agents proactius: detecció d'anomalies</text>
+    </g>
+  </g>
+
+  <!-- Footer -->
+  <text x="60" y="888" font-size="10" fill="#94a3b8">Cooltra Reporting Platform · arquitectura serverless · darrera actualització 2026-05-17</text>
+</svg>
