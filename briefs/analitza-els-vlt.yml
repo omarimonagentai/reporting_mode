@@ -1,4 +1,5 @@
 name: Analitza els VLT
+published: false
 schedule: 15 * * * *
 slack_channel: test-github-oriol
 sources:
