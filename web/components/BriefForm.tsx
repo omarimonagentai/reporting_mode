@@ -743,27 +743,33 @@ export function BriefForm(props: Props) {
         {validityHint}
       </div>
 
-      <div>
-        <LabelRow
-          htmlFor="name"
-          hint={{ text: FIELD_HELP.name, label: "Brief Name" }}
-          required
-        >
-          Brief Name
-        </LabelRow>
-        {isEditing ? (
-          <Input
-            id="name"
-            {...register("name")}
-            aria-invalid={shouldShowError("name") && !!errors.name}
-          />
-        ) : (
-          <ReadonlyValue>{brief.name}</ReadonlyValue>
-        )}
-        {shouldShowError("name") && (
-          <FieldError message={errors.name?.message} />
-        )}
-      </div>
+      <section className="space-y-4 rounded-lg border border-zinc-200 bg-white p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          Identification
+        </h2>
+        <div>
+          <LabelRow
+            htmlFor="name"
+            hint={{ text: FIELD_HELP.name, label: "Brief Name" }}
+            required
+          >
+            Brief Name
+          </LabelRow>
+          {isEditing ? (
+            <Input
+              id="name"
+              {...register("name")}
+              aria-invalid={shouldShowError("name") && !!errors.name}
+              placeholder="Ex: App version adoption — weekly"
+            />
+          ) : (
+            <ReadonlyValue>{brief.name}</ReadonlyValue>
+          )}
+          {shouldShowError("name") && (
+            <FieldError message={errors.name?.message} />
+          )}
+        </div>
+      </section>
 
       <section className="space-y-4 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
