@@ -1,0 +1,10 @@
+name: test
+schedule: 0 8 * * *
+slack_channel: test-github-oriol
+sources:
+  - mode_report_token: a4b936e1b15b
+    queries:
+      - token: 2535e3609e06
+        csv: false
+prompt: ret
+owner_email: null
