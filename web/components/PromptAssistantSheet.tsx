@@ -281,8 +281,11 @@ export function PromptAssistantSheet({
           if (!next) onClose();
         }}
       >
-        <SheetContent side="right" className="w-full sm:max-w-2xl">
-          <SheetHeader>
+        <SheetContent
+          side="right"
+          className="flex w-full flex-col sm:max-w-2xl"
+        >
+          <SheetHeader className="shrink-0 pr-12">
             <SheetTitle className="flex items-center justify-between gap-3">
               <span className="flex items-center gap-2 text-base font-medium">
                 <Bot className="size-4 text-zinc-500" />
