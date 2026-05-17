@@ -781,3 +781,35 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     8. Verify `/history` does NOT show the dry-run output (artifact-backed read path; dry-runs don't write artifacts).
     9. Curl directly: `curl -X POST https://<preview>.vercel.app/api/briefs/dry-run -H 'content-type: application/json' -d @brief.json` → response is `text/event-stream` with `event: groq-chunk\ndata: ...` lines.
     10. Operator-only check: dispatch a `/api/briefs/dry-run` call WITHOUT setting GROQ_API_KEY in Vercel → endpoint should respond cleanly with an `error` SSE event explaining the missing env var, NOT a 500 / uncaught exception.
+- [ ] **19.0 Prompt Assistant** — PRD §4 «Prompt Assistant» + §7 «Prompt Assistant». Branch `feature/19.0-prompt-assistant` (already created, branched from the PRD-only base — independent of 16.0 / 17.0 / 18.0). Decisions recorded with user 2026-05-17: 1.B GROQ Llama 3.3 70b (reuses GROQ_API_KEY from 18.0), 2.B localStorage per brief, 3 metadata + few-shot (selected on best-UX grounds — no Mode data sample), 4.A Sheet right-side toggle from within the BriefForm. **No new env var** beyond what 18.0 already needs (GROQ_API_KEY). **No new shadcn primitive** (Sheet + Dialog + Button + Textarea all in place).
+
+  - [ ] 19.1 Add the GROQ SDK to the project (if not already present from task 18.0): `cd web && npm install groq-sdk`. The Prompt Assistant reuses the same SDK + same model (`llama-3.3-70b-versatile`) the dry-run endpoint uses. If task 18.0 has landed first on this branch via merge / rebase, the SDK is already there — this sub-task becomes a no-op verified by `grep groq-sdk package.json`.
+
+  - [ ] 19.2 Implement (or reuse from 18.0) `web/lib/groq.ts` with `streamChatCompletion({ systemPrompt, userMessage, signal })`. If 18.0 has landed on this branch the wrapper already exists; otherwise port it identically. The function is an async generator yielding `{ kind: "delta", delta }` per token + `{ kind: "done", usage }` at the end. AbortSignal honoured for stream cancel.
+
+  - [ ] 19.3 Implement `web/lib/promptAssistant.ts` with `ChatMessage` + `SourceContext` types, `buildFewShot()` (top 3 briefs by prompt length, 5-min in-memory cache) and `buildSystemPrompt({ briefName, currentPrompt, sources, fewShot })`. The system prompt includes a Catalan role description, the `<suggested_prompt>...</suggested_prompt>` output contract, the brief's metadata, and the few-shot block.
+
+  - [ ] 19.4 Implement endpoint `web/app/api/briefs/prompt-assist/route.ts`: POST handler, runtime nodejs, dynamic force-dynamic. Validates body shape minimally, composes the system prompt via 19.3 helpers, calls `streamChatCompletion` with `request.signal`, streams SSE events `delta` / `complete` / `error` matching the dry-run wire shape.
+
+  - [ ] 19.5 Implement `web/hooks/usePromptAssistant.tsx` exposing `{ applyPrompt(text: string): void }` via React Context. The BriefForm passes the closure that calls `setValue("prompt", text, { shouldDirty: true })` + flips `mode` to `edit` when needed.
+
+  - [ ] 19.6 Implement `web/components/PromptAssistantButton.tsx`: outline-variant Button with lucide `Bot` icon + English label «Prompt Assistant». Mounted inside `BriefForm` next to the Prompt LabelRow's Info icon.
+
+  - [ ] 19.7 Implement `web/components/PromptAssistantSheet.tsx` — chat container. shadcn `Sheet side="right"`, `sm:max-w-2xl`. Local state machine `{ messages, status, pending, error }`. localStorage persistence per `prompt-assistant:<filename>` with 50-message cap. SSE consumer pattern from 18.0 (fetch + ReadableStream reader + newline-boundary parser). Stop button replaces Send while streaming. Clear-conversation button + Dialog confirm in the header.
+
+  - [ ] 19.8 Implement message bubble UI inside the Sheet. User bubbles right-aligned zinc-100; assistant bubbles left-aligned with `<BriefMarkdown>` rendering. When an assistant message contains `<suggested_prompt>...</suggested_prompt>`, extract the first match, render the message stripped of the tags, surface an «Apply this prompt» Button below. Click calls `usePromptAssistant().applyPrompt(extracted)` + closes the Sheet + Sonner toast «Prompt actualitzat».
+
+  - [ ] 19.9 Mount `PromptAssistantProvider` + `PromptAssistantSheet` inside `BriefForm.tsx`. New state `[assistantOpen, setAssistantOpen]`. Provider receives `applyPrompt={(text) => { setValue("prompt", text, { shouldDirty: true }); if (mode === "view") setMode("edit"); }}`. Sheet mounted alongside the existing top-level dialogs. The `<PromptAssistantButton onClick={() => setAssistantOpen(true)} />` lands inside the Prompt LabelRow next to the Info icon.
+
+  - [ ] 19.10 Smoke test on Vercel preview. Checklist:
+    1. New brief → click «Prompt Assistant» → ask for a prompt → assistant streams + suggests a `<suggested_prompt>` block → «Apply this prompt» button appears → click → form's Prompt field populated, toast surfaces.
+    2. Existing brief → ask «fes-ho més curt» → assistant suggests a shorter version → Apply works.
+    3. Close + re-open Sheet → conversation persists (localStorage).
+    4. Refresh browser → still persists.
+    5. Clear conversation → Dialog confirms → message list wiped.
+    6. Stop button mid-stream → partial assistant message stays with «(aturat)» badge.
+    7. Two different briefs in two tabs → per-brief localStorage isolation verified.
+    8. Curl test against the endpoint — SSE response with delta + complete events.
+    9. Without GROQ_API_KEY in Vercel → clean error SSE event, not 500.
+
+  - [ ] 19.11 README env-var doc + roadmap entry. Update the GROQ_API_KEY line to mention both consumers (dry-run + prompt-assist). Append to Roadmap: «19.0 ⏳ Prompt Assistant — conversational AI helper for generating and refining brief prompts; Sheet inside the BriefForm, GROQ-backed, persisted per-brief via localStorage.». Flip to ✅ at merge time. Mark every 19.x sub-task `[x]` at full ship.
