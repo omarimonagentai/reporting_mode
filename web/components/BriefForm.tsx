@@ -16,6 +16,8 @@ import { Info, Plus, Trash2 } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { ChannelCombobox } from "@/components/ChannelCombobox";
+import { PreviewButton } from "@/components/PreviewButton";
+import { PreviewSheet } from "@/components/PreviewSheet";
 import { QueryCombobox } from "@/components/QueryCombobox";
 import { ReportCombobox } from "@/components/ReportCombobox";
 import { CronBuilder } from "@/components/CronBuilder";
@@ -51,10 +53,10 @@ type EditProps = {
   // Used by the sidebar kebab's Edit action. Defaults to "view".
   initialMode?: FormMode;
   // Slot for page-level brief actions (Publish/Unpublish, Run Now,
-  // History, etc.) so they render on the SAME row as the form's
-  // Edit / Cancel + Save buttons — left side form actions, right
-  // side brief actions. Lets the detail page header stay just the
-  // title.
+  // History, Preview, etc.) so they render on the SAME row as the
+  // form's Edit / Cancel + Save buttons — left side form actions,
+  // right side brief actions. Lets the detail page header stay just
+  // the title.
   briefActions?: React.ReactNode;
 };
 
@@ -66,6 +68,11 @@ type CreateProps = {
   // string). Empty / undefined means no prefill — start from the
   // empty brief.
   prefillReportToken?: string;
+  // Optional Mode query token to pre-fill in the first source's
+  // first query slot. Paired with prefillReportToken — both flow
+  // from the catalog «Create brief» CTA which now passes both the
+  // report and the specific query the user clicked on.
+  prefillQueryToken?: string;
   // Same slot as on EditProps for create-flow consistency.
   briefActions?: React.ReactNode;
 };
@@ -263,6 +270,7 @@ type SourceCardProps = {
   onRemoveSource: () => void;
   canRemoveSource: boolean;
   shouldShowError: (name: string) => boolean;
+  onPreview: (reportToken: string, queryToken: string) => void;
 };
 
 function SourceCard({
@@ -273,6 +281,7 @@ function SourceCard({
   onRemoveSource,
   canRemoveSource,
   shouldShowError,
+  onPreview,
 }: SourceCardProps) {
   const queries = useFieldArray({
     control,
@@ -372,39 +381,58 @@ function SourceCard({
                 key={queryField.id}
                 className="flex items-start gap-3 rounded-md border border-zinc-100 bg-zinc-50 px-3 py-2"
               >
-                <div className="flex-1">
-                  {isEditing ? (
-                    <Controller
-                      control={control}
-                      name={
-                        `sources.${sourceIdx}.queries.${qIdx}.token` as const
-                      }
-                      render={({ field }) => (
-                        <QueryCombobox
-                          value={field.value}
-                          onChange={field.onChange}
-                          reportToken={watchedReportToken}
-                          ariaInvalid={showTokenErr && !!queryErrors?.token}
-                        />
-                      )}
-                    />
-                  ) : (
-                    <Controller
-                      control={control}
-                      name={
-                        `sources.${sourceIdx}.queries.${qIdx}.token` as const
-                      }
-                      render={({ field }) => (
-                        <QueryReadonly
-                          value={field.value}
-                          reportToken={watchedReportToken}
-                        />
-                      )}
-                    />
-                  )}
-                  {showTokenErr && (
-                    <FieldError message={queryErrors?.token?.message} />
-                  )}
+                <div className="flex flex-1 items-start gap-2">
+                  <div className="flex-1">
+                    {isEditing ? (
+                      <Controller
+                        control={control}
+                        name={
+                          `sources.${sourceIdx}.queries.${qIdx}.token` as const
+                        }
+                        render={({ field }) => (
+                          <>
+                            <QueryCombobox
+                              value={field.value}
+                              onChange={field.onChange}
+                              reportToken={watchedReportToken}
+                              ariaInvalid={
+                                showTokenErr && !!queryErrors?.token
+                              }
+                            />
+                          </>
+                        )}
+                      />
+                    ) : (
+                      <Controller
+                        control={control}
+                        name={
+                          `sources.${sourceIdx}.queries.${qIdx}.token` as const
+                        }
+                        render={({ field }) => (
+                          <QueryReadonly
+                            value={field.value}
+                            reportToken={watchedReportToken}
+                          />
+                        )}
+                      />
+                    )}
+                    {showTokenErr && (
+                      <FieldError message={queryErrors?.token?.message} />
+                    )}
+                  </div>
+                  <Controller
+                    control={control}
+                    name={
+                      `sources.${sourceIdx}.queries.${qIdx}.token` as const
+                    }
+                    render={({ field }) => (
+                      <PreviewButton
+                        reportToken={watchedReportToken}
+                        queryToken={field.value}
+                        onClick={onPreview}
+                      />
+                    )}
+                  />
                 </div>
 
                 <label className="flex shrink-0 items-center gap-2 pt-2 text-sm text-zinc-700">
@@ -475,6 +503,14 @@ export function BriefForm(props: Props) {
             {
               ...EMPTY_BRIEF.sources[0],
               mode_report_token: props.prefillReportToken,
+              queries: props.prefillQueryToken
+                ? [
+                    {
+                      ...EMPTY_BRIEF.sources[0].queries[0],
+                      token: props.prefillQueryToken,
+                    },
+                  ]
+                : EMPTY_BRIEF.sources[0].queries,
             },
           ],
         }
@@ -539,6 +575,9 @@ export function BriefForm(props: Props) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [preview, setPreview] = useState<
+    { reportToken: string; queryToken: string } | null
+  >(null);
 
   const isEditing = mode === "edit";
 
@@ -727,6 +766,9 @@ export function BriefForm(props: Props) {
                 onRemoveSource={() => sources.remove(sIdx)}
                 canRemoveSource={sources.fields.length > 1}
                 shouldShowError={shouldShowError}
+                onPreview={(reportToken, queryToken) =>
+                  setPreview({ reportToken, queryToken })
+                }
               />
             ))}
             {isEditing && (
@@ -892,6 +934,13 @@ export function BriefForm(props: Props) {
           <span className="font-mono">{props.filename}.yml</span>
         </p>
       )}
+
+      <PreviewSheet
+        open={preview !== null}
+        reportToken={preview?.reportToken ?? null}
+        queryToken={preview?.queryToken ?? null}
+        onClose={() => setPreview(null)}
+      />
 
       {!isCreate && (
         <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
