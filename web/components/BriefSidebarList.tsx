@@ -103,7 +103,11 @@ function BriefRow({
         link
       )}
       <div className="absolute right-1 top-1 z-10">
-        <BriefRowMenu filename={brief.filename} />
+        <BriefRowMenu
+          filename={brief.filename}
+          published={brief.published}
+          briefName={brief.name}
+        />
       </div>
     </div>
   );

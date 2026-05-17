@@ -50,7 +50,12 @@ export default async function BriefDetailPage({ params, searchParams }: Params) 
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <RunNowButton mode="existing" filename={name} />
+          <RunNowButton
+            mode="existing"
+            filename={name}
+            published={brief.published}
+            briefName={brief.name}
+          />
           <HistoryDrawerButton
             filename={name}
             briefName={brief.name}

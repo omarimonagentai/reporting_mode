@@ -545,7 +545,7 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - The «Schedule» and «Última run» columns: unchanged styling — same data either way; the user might be referring to «when was this draft last run during testing» which is real information.
     - Sort order unchanged: drafts mix with published in the same alphabetical/chronological partition; no separate «Drafts» section.
 
-  - [ ] 16.12 New `web/components/DraftRunConfirmDialog.tsx` (client component) — the shared confirmation dialog used by both Run Now call-sites.
+  - [x] 16.12 New `web/components/DraftRunConfirmDialog.tsx` (client component) — the shared confirmation dialog used by both Run Now call-sites.
     - shadcn `<Dialog>` (already installed; mounted at root via `TooltipProvider` etc.).
     - Props: `{ open: boolean, onOpenChange: (open: boolean) => void, onConfirm: () => void, briefName?: string }`.
     - Title: «Brief despublicat» (Catalan narrative — this is feedback, not chrome).
@@ -553,14 +553,14 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - Buttons: **«Cancel»** (outline variant, default focus) + **«Run anyway»** (primary). Run anyway calls `onConfirm()` and lets the parent close the dialog via `onOpenChange(false)` so the parent stays in control of subsequent state (cooldown start, toast, etc.).
     - Pressing Escape OR clicking outside dismisses (standard Radix behaviour, equivalent to Cancel — no `onConfirm` fires).
 
-  - [ ] 16.13 `RunNowButton.tsx` (header) draft-confirmation wiring.
+  - [x] 16.13 `RunNowButton.tsx` (header) draft-confirmation wiring.
     - Component accepts a new prop `published?: boolean` (default `true` for backwards-safety: if a caller forgets to pass it, the button behaves as published). The detail-page caller passes the brief's actual `published` value.
     - Local state `[confirmOpen, setConfirmOpen] = useState(false)`.
     - When the user clicks the button: if `published === false`, set `confirmOpen=true` and do NOT dispatch yet. Otherwise, dispatch immediately (today's behaviour).
     - Render `<DraftRunConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen} onConfirm={() => { setConfirmOpen(false); dispatch(); }} briefName={...} />` at the bottom of the JSX tree.
     - The 2-minute cooldown applies AFTER the user confirms — the dialog itself is not gated by the cooldown predicate. A second click within the cooldown window returns the existing HTTP 429 toast.
 
-  - [ ] 16.14 `BriefRowMenu.tsx` (kebab) draft-confirmation wiring.
+  - [x] 16.14 `BriefRowMenu.tsx` (kebab) draft-confirmation wiring.
     - Same prop addition: `published?: boolean` (default `true`).
     - Sidebar list propagation: `BriefSidebarList.tsx` now receives `published` per row (from 16.8) — pass it down to each `<BriefRowMenu published={...} />`.
     - When the user clicks the «Run Now» menu item: identical logic to 16.13 (open dialog when `!published`, otherwise dispatch). Reuses the same `<DraftRunConfirmDialog>` component.
