@@ -1,4 +1,4 @@
-name: Combo test
+name: Combo test CH45
 schedule: 45 * * * *
 slack_channel: testing-canal-nou-eliminar
 reference_link: https://status.claude.com/
