@@ -7,7 +7,7 @@ sources:
       - token: 41866cf9bd17
         csv: false
 prompt: |-
-  Mira si alguna table té "is_fresh = false" i en aquest indica el nom de la taula i la data de la seva darrera actualització.
+  Mira si alguna table té "is_fresh = false" i en aquest cas indica el nom de la taula i la data de la seva darrera actualització.
 
   Regles estrictes:
   - Escriu en català
