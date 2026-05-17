@@ -53,10 +53,10 @@ type EditProps = {
   // Used by the sidebar kebab's Edit action. Defaults to "view".
   initialMode?: FormMode;
   // Slot for page-level brief actions (Publish/Unpublish, Run Now,
-  // History, etc.) so they render on the SAME row as the form's
-  // Edit / Cancel + Save buttons — left side form actions, right
-  // side brief actions. Lets the detail page header stay just the
-  // title.
+  // History, Preview, etc.) so they render on the SAME row as the
+  // form's Edit / Cancel + Save buttons — left side form actions,
+  // right side brief actions. Lets the detail page header stay just
+  // the title.
   briefActions?: React.ReactNode;
 };
 
