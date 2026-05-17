@@ -594,18 +594,18 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - `getQueryRunResults` → `GET /api/${account}/reports/${reportToken}/runs/${runToken}/query_runs/${queryRunToken}/results/content.json`. Returns an array of row objects (`Record<string, unknown>[]`) — same payload shape the Python `get_query_results()` returns. Mode caps the JSON response at ~1k rows; the endpoint slices to `limit` after the fetch (no server-side limit param available).
     - Error path: any `!res.ok` throws `new Error("Mode <fn>(<args>) failed: <status> <body>")` — same pattern as the existing `lib/mode.ts` helpers so the route handler can `catch err` and respond 502 uniformly.
 
-  - [ ] 17.3 Implement the route handler `web/app/api/mode/preview/[report]/[query]/route.ts` (path params + ?limit + ?force).
+  - [x] 17.3 Implement the route handler `web/app/api/mode/preview/[report]/[query]/route.ts` (path params + ?limit + ?force).
     - File header: `import "server-only";`, `export const runtime = "nodejs";`, `export const dynamic = "force-dynamic";`. Same prelude pattern as `/api/scheduler/tick` (14.0) and `/api/runs/[brief]` so the runtime contract is consistent.
     - Path-param signature follows Next 16's async params: `{ params: Promise<{ report: string; query: string }> }`. Read `searchParams` from the request URL for `limit` (default 10, clamped 1-50; non-numeric → 10) and `force` (`=== "true"`).
     - Sanitise the path params: reject empty strings with 400, reject anything outside `[A-Za-z0-9_-]+` with 400 (Mode tokens are stable alphanumeric; this is a cheap defence against path traversal smuggled into `report`/`query` even though the helper paths concatenate them into the Mode URL, not a filesystem path).
 
-  - [ ] 17.4 Add the in-memory cache to the preview endpoint (5-min TTL + `?force=true` bust).
+  - [x] 17.4 Add the in-memory cache to the preview endpoint (5-min TTL + `?force=true` bust).
     - Module-level `const cache = new Map<string, { fetchedAt: number; data: PreviewResult }>();` + `const TTL_MS = 5 * 60 * 1000;`.
     - Cache key: `` `${report}:${query}:${limit}` `` — different `limit` values are cached independently so `?limit=10` and `?limit=25` don't pollute each other.
     - `?force=true` deletes the entry before the fetch path runs (not after — so even if the upstream call fails, the next un-forced read won't return a stale-but-still-valid entry).
     - Identical pattern to `web/lib/channels.ts` and the cache in `/api/runs/[brief]/route.ts` so future readers can pattern-match without reading three implementations.
 
-  - [ ] 17.5 Implement the orchestration inside the preview endpoint: `findLatestSucceededRun` → `listQueryRunsForRun` → `getQueryRunResults` and return the discriminated-union response.
+  - [x] 17.5 Implement the orchestration inside the preview endpoint: `findLatestSucceededRun` → `listQueryRunsForRun` → `getQueryRunResults` and return the discriminated-union response.
     - Algorithm:
       1. `const { latest, anyRun } = await findLatestSucceededRun(report);`
       2. If `latest === null && anyRun === null` → respond `{ kind: "no-previous-run" }` (HTTP 200).
@@ -616,7 +616,7 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
       7. Else: `const rows = await getQueryRunResults(report, latest.token, qr.token); const total_rows = rows.length; const sliced = rows.slice(0, limit); const columns = sliced.length > 0 ? Object.keys(sliced[0]) : [];` then respond `{ kind: "ready", run: { completed_at: latest.completed_at, state: latest.state }, query: { token: qr.token, name: qr.query_name }, columns, rows: sliced, total_rows }`.
     - Wrap the whole orchestration in `try/catch (err)`. Any throw → HTTP 502 with `{ error: "Mode upstream failure", message: err.message }`. The 502 response is **not cached**; the cache only stores `kind: "ready" | "no-previous-run" | "run-failed" | "query-not-found"` so a transient Mode outage doesn't poison the cache for 5 min.
 
-  - [ ] 17.6 Define the `PreviewResult` TypeScript type at the top of the route file (or in a small `lib/preview-types.ts` if the client component also needs it — likely yes, see 17.10).
+  - [x] 17.6 Define the `PreviewResult` TypeScript type at the top of the route file (or in a small `lib/preview-types.ts` if the client component also needs it — likely yes, see 17.10).
     - `type PreviewResult = | { kind: "ready"; run: { completed_at: string; state: string }; query: { token: string; name: string }; columns: string[]; rows: Record<string, unknown>[]; total_rows: number } | { kind: "no-previous-run" } | { kind: "run-failed"; run: { state: string; completed_at: string } } | { kind: "query-not-found" };`
     - Export it. Both the server (response) and the client (parsed `await res.json()` casting) consume the same shape.
 
