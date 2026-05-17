@@ -503,15 +503,15 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - Smoke-test via `curl -H "Authorization: Bearer $CRON_SECRET" https://<preview>.vercel.app/api/scheduler/tick`: expect `skipped_draft` to match the count of `published: false` briefs in the repo at the time of the call (manually count via `grep -c "^published: false" briefs/*.yml`).
     - **No `due_runner.py` change** — that file was deleted in task 14.0; the Python codepath no longer participates in scheduling decisions.
 
-  - [ ] 16.4 Install the shadcn `switch` primitive: `cd web && npx shadcn@latest add switch`. Only new shadcn primitive in this task. Verify the install added `web/components/ui/switch.tsx` and updated `components.json`.
+  - [x] 16.4 Install the shadcn `switch` primitive: `cd web && npx shadcn@latest add switch`. Only new shadcn primitive in this task. Verify the install added `web/components/ui/switch.tsx` and updated `components.json`.
 
-  - [ ] 16.5 New `web/components/PublishedToggle.tsx` (client component) wrapping the shadcn `<Switch>`.
+  - [x] 16.5 New `web/components/PublishedToggle.tsx` (client component) wrapping the shadcn `<Switch>`.
     - Props: `{ control: Control<BriefForm>, mode: FormMode }` (or accept `{ value, onChange, disabled }` if preferred — the existing components use both styles).
     - Wire via `<Controller>` from RHF: `name="published"`, `render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} disabled={mode === "view"} />}`.
     - Label rendered to the right of the Switch: **«Published»** when on (no special style), **«Draft»** when off (`text-zinc-500`). Both labels in English (chrome). No localised narrative on the toggle itself — the badge in 16.6 carries the at-a-glance signal.
     - Size: matches the existing title-row toolbar buttons (`size="sm"` equivalent — `h-9`, vertically centered).
 
-  - [ ] 16.6 New `web/components/PublishedBadge.tsx` (server component, accepts `{ published: boolean }`).
+  - [x] 16.6 New `web/components/PublishedBadge.tsx` (server component, accepts `{ published: boolean }`).
     - `Published` variant: `bg-emerald-50 text-emerald-700 border border-emerald-200`, uppercase text-[10px] font-mono, rounded.
     - `Draft` variant: `bg-zinc-100 text-zinc-600 border border-zinc-200`, same shape.
     - Mounted in `web/app/briefs/[name]/page.tsx`'s title rendering (next to the brief name, before the loaded-at indicator). Server-rendered from the parsed brief so the badge is visible immediately on landing — no client hydration flash. The page already parses the brief; just thread the `published` field through to the title block.
