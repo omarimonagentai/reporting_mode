@@ -523,7 +523,7 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - In edit mode the toggle is interactive; the new value is part of the RHF form state and ships with Save.
     - On `/briefs/new`, the toggle renders interactive from initial render (the create form is always in edit mode). Initial value comes from `EMPTY_BRIEF.published = false` (set in 16.1).
 
-  - [ ] 16.8 Propagate `published` through `web/lib/briefs.ts:getBriefListWithRuns()` so it reaches the sidebar and `/schedule` row builders.
+  - [x] 16.8 Propagate `published` through `web/lib/briefs.ts:getBriefListWithRuns()` so it reaches the sidebar and `/schedule` row builders.
     - Extend `BriefListItem` (defined in `web/lib/schemas.ts`) with `published: boolean`.
     - `getBriefList()` and `getBriefListWithRuns()` already parse each brief; just include `published` in the projected row shape.
     - No new fetch — `published` is in the same YAML body that `parseBrief` already produces.

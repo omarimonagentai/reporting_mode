@@ -40,6 +40,7 @@ export type Brief = z.infer<typeof briefSchema>;
 export type BriefListItem = {
   filename: string;
   name: string;
+  published: boolean;
   schedule: string;
   slack_channel: string;
   source_count: number;
