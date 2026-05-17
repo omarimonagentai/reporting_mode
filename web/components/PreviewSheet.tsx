@@ -44,7 +44,6 @@ export function PreviewSheet({
       return;
     }
     const controller = new AbortController();
-    setState({ kind: "loading" });
 
     const params = new URLSearchParams({ limit: "10" });
     if (refreshCounter > 0) {
@@ -53,6 +52,7 @@ export function PreviewSheet({
     const url = `/api/mode/preview/${reportToken}/${queryToken}?${params.toString()}`;
 
     (async () => {
+      setState({ kind: "loading" });
       try {
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) {
