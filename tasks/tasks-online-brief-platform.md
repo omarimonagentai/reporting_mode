@@ -620,7 +620,7 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - `type PreviewResult = | { kind: "ready"; run: { completed_at: string; state: string }; query: { token: string; name: string }; columns: string[]; rows: Record<string, unknown>[]; total_rows: number } | { kind: "no-previous-run" } | { kind: "run-failed"; run: { state: string; completed_at: string } } | { kind: "query-not-found" };`
     - Export it. Both the server (response) and the client (parsed `await res.json()` casting) consume the same shape.
 
-  - [ ] 17.7 Implement the `PreviewTable` presentational component (`web/components/PreviewTable.tsx`).
+  - [x] 17.7 Implement the `PreviewTable` presentational component (`web/components/PreviewTable.tsx`).
     - Client component (just because it's mounted inside `PreviewSheet` which is client). Pure render — no fetch, no state.
     - Props: `{ columns: string[]; rows: Record<string, unknown>[]; total_rows: number }`.
     - Layout: a `<div className="min-w-full overflow-x-auto">` wrapping a `<table className="text-sm">`. Columns get a `<th>` each (font-medium, zinc-600, left-aligned). Rows cycle alternating bg (`even:bg-zinc-50/40`) for legibility on wide tables.
@@ -628,7 +628,7 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - Footer line below the table: when `total_rows > rows.length`, render `«Showing N of M rows»` in `text-xs text-zinc-500 mt-2`. Otherwise nothing.
     - When `rows.length === 0` (the `0-row` edge case from 17.11 routes through this same component with an empty `rows` array), the component renders the table header row alone + a small `«Cap fila retornada en aquest run»` below (English chrome but Catalan narrative — same idiom the rest of the app follows).
 
-  - [ ] 17.8 Implement `renderCell(value: unknown)` inside `PreviewTable` (or extract to `web/lib/previewCell.tsx` if testing seams ever emerge).
+  - [x] 17.8 Implement `renderCell(value: unknown)` inside `PreviewTable` (or extract to `web/lib/previewCell.tsx` if testing seams ever emerge).
     - `null` / `undefined` → `<span className="text-zinc-400">null</span>` (muted, distinct from empty string).
     - `boolean` → the literal `"true"` / `"false"` in font-mono.
     - `number` → toString, right-aligned cell (apply `text-right` on the `<td>` when the column's first non-null value is a number — best-effort column-level alignment from the first row).
@@ -637,19 +637,19 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - Date-like strings (anything `new Date(value).getTime()` returns a finite number AND the string matches `\d{4}-\d{2}-\d{2}`) → render as-is in font-mono. We don't reformat — Mode's output is already operator-friendly, and reformat would risk surprising the user.
     - All other types → `String(value)` fallback. Don't crash on exotic shapes.
 
-  - [ ] 17.9 Implement `PreviewSheet` (`web/components/PreviewSheet.tsx`) — the side-panel container that mounts once at the BriefForm root and consumes a `{ open, reportToken, queryToken }` state slice.
+  - [x] 17.9 Implement `PreviewSheet` (`web/components/PreviewSheet.tsx`) — the side-panel container that mounts once at the BriefForm root and consumes a `{ open, reportToken, queryToken }` state slice.
     - Client component. shadcn `Sheet` side="right", `SheetContent` width `sm:max-w-2xl` so 4-6-column tables fit before horizontal scroll kicks in.
     - Props: `{ open: boolean; reportToken: string | null; queryToken: string | null; onClose: () => void; }`. Parent (BriefForm) owns the state; the Sheet is fully controlled.
     - When `open && reportToken && queryToken`, fire a fetch to `/api/mode/preview/${reportToken}/${queryToken}?limit=10` and store the result in local state `{ status: "idle" | "loading" | "ready" | "error"; data?: PreviewResult; error?: string }`. On close (Escape, outside-click, X, or onClose), the parent flips `open=false`; the Sheet stays mounted to keep the closing animation smooth.
     - Header content per the PRD P4: query name (font-medium) + raw token muted underneath (read from `useSpaceCatalog()` — same client cache the comboboxes use; falls back to the raw token if the catalog hasn't resolved). Below: relative-time + Catalunya-time of the last run (when `kind: "ready"`); rows + columns count; Refresh button (lucide `RefreshCw`, ghost xs) that re-fires the fetch with `?force=true`.
 
-  - [ ] 17.10 Wire the `useEffect` fetch lifecycle inside `PreviewSheet` with `AbortController` for stale-request invalidation.
+  - [x] 17.10 Wire the `useEffect` fetch lifecycle inside `PreviewSheet` with `AbortController` for stale-request invalidation.
     - `useEffect(() => { ... }, [open, reportToken, queryToken])` — keyed so opening, switching queries, or re-opening fires a fresh fetch.
     - Inside the effect: if `!open || !reportToken || !queryToken`, return early. Otherwise create an `AbortController`, set status to `"loading"`, await `fetch(url, { signal: controller.signal })`, parse JSON, set status to `"ready"` with `data`. Catch `AbortError` and bail silently (the user re-clicked Preview on a different query before the previous fetch landed); catch other errors and set status `"error"` with `err.message`.
     - Cleanup function: `controller.abort()` — guarantees the previous fetch's setState calls are no-ops if a new fetch supersedes it.
     - A separate `refresh()` function that triggers the same fetch path with `?force=true` — wired to the header's Refresh button. Implementation: bump a local `refreshCounter` state value, add it to the effect's dep array, append `&force=true` when `refreshCounter > 0`. Avoids duplicating the fetch logic.
 
-  - [ ] 17.11 Render the 5 distinct edge-case states inside `PreviewSheet` based on the `PreviewResult` discriminated union.
+  - [x] 17.11 Render the 5 distinct edge-case states inside `PreviewSheet` based on the `PreviewResult` discriminated union.
     - `loading` → centered shadcn skeleton (3-line placeholder) with «Carregant preview…» below in muted text.
     - `kind: "ready"` → the `<PreviewTable>` from 17.7. (When `rows.length === 0`, the table itself renders the empty-state footer per 17.7's contract; no special branch needed here.)
     - `kind: "no-previous-run"` → muted info block: «Cap run previ d'aquest report a Mode. Desa el brief i fes Run Now per disparar el primer fetch.» No error styling — informational.
