@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { BriefDebugFooter } from "@/components/BriefDebugFooter";
 import { BriefForm } from "@/components/BriefForm";
 import { ExecutionMetadata } from "@/components/ExecutionMetadata";
 import { HistoryDrawerButton } from "@/components/HistoryDrawerButton";
@@ -65,6 +66,8 @@ export default async function BriefDetailPage({ params, searchParams }: Params) 
           initialMode={initialEdit ? "edit" : "view"}
         />
       </div>
+
+      <BriefDebugFooter filename={name} />
     </div>
   );
 }
