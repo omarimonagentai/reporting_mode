@@ -7,10 +7,10 @@ sources:
       - token: 41866cf9bd17
         csv: false
 prompt: |-
-  Mira si alguna table té is fresh false i indica el nom de la taula i la data de la seva darrera actualització.
-  Fes una redacció molt detallada sobre el que opines que pot contenir cada taula. Mostra les dades de cada registre.
-  Al final de tot fes un poema amb els noms de les taules procurant que rimi.
+  Mira si alguna table té "is_fresh = false" i en aquest indica el nom de la taula i la data de la seva darrera actualització.
 
-  Restriccions:
-  - Mai superis els 2000 caràcters de resposta
+  Regles estrictes:
+  - Escriu en català
+  - Lleguatge directe, sense introduccions genèriques ("En aquest inform...", "Com podem observar...") ni conclusions.
+  - No inventis dades
 owner_email: null
