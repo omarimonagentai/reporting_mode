@@ -1,0 +1,11 @@
+name: Table updates - no prompt
+published: false
+schedule: 0 8 * * *
+slack_channel: test-github-oriol
+sources:
+  - mode_report_token: a4b936e1b15b
+    queries:
+      - token: 41866cf9bd17
+        csv: false
+prompt: ""
+owner_email: null
