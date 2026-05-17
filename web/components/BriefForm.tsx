@@ -46,6 +46,10 @@ type EditProps = {
   filename: string;
   initialBrief: Brief;
   initialSha: string;
+  // When "edit" (driven by `?edit=1` on the detail page) the form lands
+  // already in edit mode so the user doesn't have to click Edit first.
+  // Used by the sidebar kebab's Edit action. Defaults to "view".
+  initialMode?: FormMode;
 };
 
 type CreateProps = {
@@ -467,7 +471,9 @@ export function BriefForm(props: Props) {
         }
       : EMPTY_BRIEF
     : props.initialBrief;
-  const [mode, setMode] = useState<FormMode>(isCreate ? "edit" : "view");
+  const [mode, setMode] = useState<FormMode>(
+    isCreate ? "edit" : (props.initialMode ?? "view")
+  );
   const [sha, setSha] = useState(isCreate ? "" : props.initialSha);
   const [brief, setBrief] = useState(initialBrief);
   const [isSaving, setIsSaving] = useState(false);
