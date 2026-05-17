@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, History as HistoryIcon, RefreshCw } from "lucide-react";
 import { BriefMarkdown } from "@/components/BriefMarkdown";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,11 @@ type Props = {
   filename: string;
   briefName: string;
   slackChannel: string;
+  // When true (driven by `?history=1` on the brief detail page), the
+  // drawer opens automatically on mount. Used by the sidebar kebab's
+  // History action so a single click both navigates and opens the
+  // drawer without the user having to click History again.
+  initialOpen?: boolean;
 };
 
 type State =
@@ -33,8 +38,9 @@ export function HistoryDrawerButton({
   filename,
   briefName,
   slackChannel,
+  initialOpen = false,
 }: Props) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [state, setState] = useState<State>({ kind: "idle" });
 
   const load = useCallback(
@@ -60,6 +66,16 @@ export function HistoryDrawerButton({
     },
     [filename]
   );
+
+  // When the page lands with `?history=1` the drawer is open on the first
+  // render but the data fetch happens here so server-side rendering stays
+  // free of any client-only side effect.
+  useEffect(() => {
+    if (initialOpen) {
+      void load(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleOpenChange(next: boolean) {
     setOpen(next);

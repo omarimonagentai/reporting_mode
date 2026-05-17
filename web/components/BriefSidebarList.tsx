@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { BriefRowMenu } from "@/components/BriefRowMenu";
 import {
   Tooltip,
   TooltipContent,
@@ -62,11 +63,13 @@ function BriefRow({
 }) {
   const isTruncated = brief.name.length > TRUNCATE_THRESHOLD;
 
-  const row = (
+  // `pr-9` reserves space on the right for the absolutely-positioned
+  // kebab button so the brief name never visually slides under it.
+  const link = (
     <Link
       href={href}
       className={cn(
-        "flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-sm text-zinc-700 transition-colors",
+        "flex flex-col gap-0.5 rounded-md py-1.5 pl-2 pr-9 text-sm text-zinc-700 transition-colors",
         isActive
           ? "bg-zinc-100 font-medium text-zinc-900"
           : "hover:bg-zinc-100"
@@ -80,18 +83,23 @@ function BriefRow({
     </Link>
   );
 
-  return (
-    <li>
+  const row = (
+    <div className="group relative">
       {isTruncated ? (
         <Tooltip>
-          <TooltipTrigger asChild>{row}</TooltipTrigger>
+          <TooltipTrigger asChild>{link}</TooltipTrigger>
           <TooltipContent side="right">{brief.name}</TooltipContent>
         </Tooltip>
       ) : (
-        row
+        link
       )}
-    </li>
+      <div className="absolute right-1 top-1 z-10">
+        <BriefRowMenu filename={brief.filename} />
+      </div>
+    </div>
   );
+
+  return <li>{row}</li>;
 }
 
 function StatusIcon({ run }: { run: RunLookup }) {
