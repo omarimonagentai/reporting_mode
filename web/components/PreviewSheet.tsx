@@ -54,7 +54,6 @@ export function PreviewSheet({
   const [state, setState] = useState<State>({ kind: "idle" });
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
-  const [dragging, setDragging] = useState(false);
   const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(
     null
   );
@@ -63,38 +62,47 @@ export function PreviewSheet({
     setWidth(loadWidth());
   }, []);
 
-  useEffect(() => {
-    if (!dragging) return;
-    function onMove(e: PointerEvent) {
-      const s = dragStateRef.current;
-      if (!s) return;
-      const dx = s.startX - e.clientX;
-      const next = Math.max(
-        MIN_WIDTH,
-        Math.min(MAX_WIDTH, s.startWidth + dx)
-      );
-      setWidth(next);
-    }
-    function onUp() {
-      setDragging(false);
-      dragStateRef.current = null;
-      try {
-        window.localStorage.setItem(WIDTH_STORAGE_KEY, String(width));
-      } catch {
-        // ignore quota / disabled storage
-      }
-    }
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  }, [dragging, width]);
-
-  function onDragStart(e: React.PointerEvent<HTMLDivElement>) {
+  // Drag-handle logic uses pointer capture on the handle element
+  // itself rather than window-level listeners. The previous
+  // implementation attached pointermove + pointerup to `window`,
+  // which Radix Dialog's pointer-event interception inside the
+  // SheetContent silently swallowed — the handle was visible but
+  // unresponsive. setPointerCapture binds the pointer to the
+  // handle for the duration of the drag, so every move/up event
+  // routes to it regardless of cursor position.
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
     dragStateRef.current = { startX: e.clientX, startWidth: width };
-    setDragging(true);
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const s = dragStateRef.current;
+    if (!s) return;
+    const dx = s.startX - e.clientX;
+    const next = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, s.startWidth + dx));
+    setWidth(next);
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragStateRef.current) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore — capture may have been released already
+    }
+    const finalWidth = (() => {
+      const s = dragStateRef.current;
+      if (!s) return width;
+      const dx = s.startX - e.clientX;
+      return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, s.startWidth + dx));
+    })();
+    dragStateRef.current = null;
+    try {
+      window.localStorage.setItem(WIDTH_STORAGE_KEY, String(finalWidth));
+    } catch {
+      // ignore quota / disabled storage
+    }
   }
 
   useEffect(() => {
@@ -157,9 +165,11 @@ export function PreviewSheet({
         style={{ width: `${width}px` }}
       >
         <div
-          onPointerDown={onDragStart}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
           aria-hidden
-          className="group absolute inset-y-0 left-0 z-30 flex w-2 cursor-col-resize items-center justify-center transition-colors hover:bg-zinc-100"
+          className="group absolute inset-y-0 left-0 z-30 flex w-3 cursor-col-resize touch-none select-none items-center justify-center transition-colors hover:bg-zinc-100"
         >
           <GripVertical className="size-3 text-zinc-300 transition-colors group-hover:text-zinc-500" />
         </div>
