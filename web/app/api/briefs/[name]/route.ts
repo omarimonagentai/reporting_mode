@@ -71,7 +71,7 @@ export async function PUT(
     if (clash) {
       return NextResponse.json(
         {
-          error: `A brief named "${parsed.data.name}" already exists (${clash.filename}.yml). Choose a different name.`,
+          error: `Ja existeix un brief amb el nom «${parsed.data.name}» (${clash.filename}.yml). Tria un nom diferent.`,
         },
         { status: 409 }
       );
