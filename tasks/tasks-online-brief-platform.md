@@ -582,3 +582,103 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - Mark every 16.x sub-task `[x]` in this file as it completes; on full ship, change the 16.0 parent task header to `- [x] **16.0 Publish / Unpublish brief** ✅`.
     - **No PRD edits at this stage** — the PRD already reflects the shipped state via the bloc landed in commit `035654c`. If implementation surfaces a deviation from PT1-PT11, document it inline alongside the deviating sub-task and add a «deviation» note to the PRD ribbon as the convention requires (see how task 4.0's 4.11 «post-4.0 polish» block did it).
 
+- [ ] **17.0 Mode data preview** — PRD §4 «Mode data preview» + §7 «Mode data preview». Branch `feature/17.0-mode-data-preview` (already created, branched from the PRD-only base so it does not carry task 16.0's code; a post-merge rebase of either branch over the other resolves the TASKS-file ordering trivially). Decisions recorded with user 2026-05-17: 1.A reuse the latest succeeded run (~1-3 s latency, no Mode SQL cost), 2.A Sheet side="right" (matches History drawer rhythm from 12.0 / 15.0), 3.A 10-row preview cap, 4.A 5-min TTL + `?force=true`. **No new env var, no new shadcn primitive** — `Sheet` is already installed since 12.0 and reused here.
+
+  - [ ] 17.1 Extend `web/lib/mode.ts` with `listReportRuns(reportToken)` and `findLatestSucceededRun(reportToken)`.
+    - `listReportRuns` → `GET /api/${account}/reports/${reportToken}/runs` with the same Basic auth + `Accept: application/hal+json` shape already used by `listSpaceReports` and `listReportQueries`. Response payload: `_embedded.runs[]`, each entry has at least `{ token, state, created_at, completed_at }`. Map and return the minimum we need; sort descending by `completed_at ?? created_at` defensively (Mode docs the field as "approximately ordered" — don't rely on the input order).
+    - `findLatestSucceededRun` filters `listReportRuns(reportToken)` for `state === "succeeded"` and returns the first match or `null`. The endpoint distinguishes `null` (→ `kind: "no-previous-run"`) from "runs exist but the newest failed" (→ `kind: "run-failed"`) by also peeking at `runs[0]` when the filter is empty; return shape: `{ latest: ModeRun | null, anyRun: ModeRun | null }` so the caller has both signals.
+    - New type `ModeRun` exported alongside `ModeReport` / `ModeQuery` — keep it in `lib/mode-types.ts` next to its siblings.
+
+  - [ ] 17.2 Extend `web/lib/mode.ts` with `listQueryRunsForRun(reportToken, runToken)` and `getQueryRunResults(reportToken, runToken, queryRunToken)`.
+    - `listQueryRunsForRun` → `GET /api/${account}/reports/${reportToken}/runs/${runToken}/query_runs`. Returns `_embedded.query_runs[]`, each entry `{ token, query_name, state }`. The Python executor's `list_query_runs()` in `scripts/executor.py` hits the same endpoint — the TS port mirrors that contract.
+    - `getQueryRunResults` → `GET /api/${account}/reports/${reportToken}/runs/${runToken}/query_runs/${queryRunToken}/results/content.json`. Returns an array of row objects (`Record<string, unknown>[]`) — same payload shape the Python `get_query_results()` returns. Mode caps the JSON response at ~1k rows; the endpoint slices to `limit` after the fetch (no server-side limit param available).
+    - Error path: any `!res.ok` throws `new Error("Mode <fn>(<args>) failed: <status> <body>")` — same pattern as the existing `lib/mode.ts` helpers so the route handler can `catch err` and respond 502 uniformly.
+
+  - [ ] 17.3 Implement the route handler `web/app/api/mode/preview/[report]/[query]/route.ts` (path params + ?limit + ?force).
+    - File header: `import "server-only";`, `export const runtime = "nodejs";`, `export const dynamic = "force-dynamic";`. Same prelude pattern as `/api/scheduler/tick` (14.0) and `/api/runs/[brief]` so the runtime contract is consistent.
+    - Path-param signature follows Next 16's async params: `{ params: Promise<{ report: string; query: string }> }`. Read `searchParams` from the request URL for `limit` (default 10, clamped 1-50; non-numeric → 10) and `force` (`=== "true"`).
+    - Sanitise the path params: reject empty strings with 400, reject anything outside `[A-Za-z0-9_-]+` with 400 (Mode tokens are stable alphanumeric; this is a cheap defence against path traversal smuggled into `report`/`query` even though the helper paths concatenate them into the Mode URL, not a filesystem path).
+
+  - [ ] 17.4 Add the in-memory cache to the preview endpoint (5-min TTL + `?force=true` bust).
+    - Module-level `const cache = new Map<string, { fetchedAt: number; data: PreviewResult }>();` + `const TTL_MS = 5 * 60 * 1000;`.
+    - Cache key: `` `${report}:${query}:${limit}` `` — different `limit` values are cached independently so `?limit=10` and `?limit=25` don't pollute each other.
+    - `?force=true` deletes the entry before the fetch path runs (not after — so even if the upstream call fails, the next un-forced read won't return a stale-but-still-valid entry).
+    - Identical pattern to `web/lib/channels.ts` and the cache in `/api/runs/[brief]/route.ts` so future readers can pattern-match without reading three implementations.
+
+  - [ ] 17.5 Implement the orchestration inside the preview endpoint: `findLatestSucceededRun` → `listQueryRunsForRun` → `getQueryRunResults` and return the discriminated-union response.
+    - Algorithm:
+      1. `const { latest, anyRun } = await findLatestSucceededRun(report);`
+      2. If `latest === null && anyRun === null` → respond `{ kind: "no-previous-run" }` (HTTP 200).
+      3. If `latest === null && anyRun !== null` → respond `{ kind: "run-failed", run: { state: anyRun.state, completed_at: anyRun.completed_at ?? anyRun.created_at } }` (HTTP 200).
+      4. Else (`latest !== null`): `const queryRuns = await listQueryRunsForRun(report, latest.token);`
+      5. Find `qr = queryRuns.find(q => q.token === query)` — note we match by the Mode **query** token, not by `query_name` (the Python executor uses name for run-time matching because YAMLs pre-2026-05 used query tokens that mapped to names; for preview we have the token directly from the BriefForm — token match is exact and rename-safe).
+      6. If `qr === undefined` → respond `{ kind: "query-not-found" }` (HTTP 200).
+      7. Else: `const rows = await getQueryRunResults(report, latest.token, qr.token); const total_rows = rows.length; const sliced = rows.slice(0, limit); const columns = sliced.length > 0 ? Object.keys(sliced[0]) : [];` then respond `{ kind: "ready", run: { completed_at: latest.completed_at, state: latest.state }, query: { token: qr.token, name: qr.query_name }, columns, rows: sliced, total_rows }`.
+    - Wrap the whole orchestration in `try/catch (err)`. Any throw → HTTP 502 with `{ error: "Mode upstream failure", message: err.message }`. The 502 response is **not cached**; the cache only stores `kind: "ready" | "no-previous-run" | "run-failed" | "query-not-found"` so a transient Mode outage doesn't poison the cache for 5 min.
+
+  - [ ] 17.6 Define the `PreviewResult` TypeScript type at the top of the route file (or in a small `lib/preview-types.ts` if the client component also needs it — likely yes, see 17.10).
+    - `type PreviewResult = | { kind: "ready"; run: { completed_at: string; state: string }; query: { token: string; name: string }; columns: string[]; rows: Record<string, unknown>[]; total_rows: number } | { kind: "no-previous-run" } | { kind: "run-failed"; run: { state: string; completed_at: string } } | { kind: "query-not-found" };`
+    - Export it. Both the server (response) and the client (parsed `await res.json()` casting) consume the same shape.
+
+  - [ ] 17.7 Implement the `PreviewTable` presentational component (`web/components/PreviewTable.tsx`).
+    - Client component (just because it's mounted inside `PreviewSheet` which is client). Pure render — no fetch, no state.
+    - Props: `{ columns: string[]; rows: Record<string, unknown>[]; total_rows: number }`.
+    - Layout: a `<div className="min-w-full overflow-x-auto">` wrapping a `<table className="text-sm">`. Columns get a `<th>` each (font-medium, zinc-600, left-aligned). Rows cycle alternating bg (`even:bg-zinc-50/40`) for legibility on wide tables.
+    - Cell value rendered via `renderCell(value)` (next sub-task).
+    - Footer line below the table: when `total_rows > rows.length`, render `«Showing N of M rows»` in `text-xs text-zinc-500 mt-2`. Otherwise nothing.
+    - When `rows.length === 0` (the `0-row` edge case from 17.11 routes through this same component with an empty `rows` array), the component renders the table header row alone + a small `«Cap fila retornada en aquest run»` below (English chrome but Catalan narrative — same idiom the rest of the app follows).
+
+  - [ ] 17.8 Implement `renderCell(value: unknown)` inside `PreviewTable` (or extract to `web/lib/previewCell.tsx` if testing seams ever emerge).
+    - `null` / `undefined` → `<span className="text-zinc-400">null</span>` (muted, distinct from empty string).
+    - `boolean` → the literal `"true"` / `"false"` in font-mono.
+    - `number` → toString, right-aligned cell (apply `text-right` on the `<td>` when the column's first non-null value is a number — best-effort column-level alignment from the first row).
+    - `string` → as-is; long strings (> 80 chars) truncate with `truncate` + `max-w-xs` + a Tooltip showing the full value on hover. Same truncate idiom as the catalog landing.
+    - Nested object / array → `JSON.stringify(value)` rendered inside `<code className="font-mono text-[11px]">`, truncated to 80 chars with the same Tooltip-on-hover pattern.
+    - Date-like strings (anything `new Date(value).getTime()` returns a finite number AND the string matches `\d{4}-\d{2}-\d{2}`) → render as-is in font-mono. We don't reformat — Mode's output is already operator-friendly, and reformat would risk surprising the user.
+    - All other types → `String(value)` fallback. Don't crash on exotic shapes.
+
+  - [ ] 17.9 Implement `PreviewSheet` (`web/components/PreviewSheet.tsx`) — the side-panel container that mounts once at the BriefForm root and consumes a `{ open, reportToken, queryToken }` state slice.
+    - Client component. shadcn `Sheet` side="right", `SheetContent` width `sm:max-w-2xl` so 4-6-column tables fit before horizontal scroll kicks in.
+    - Props: `{ open: boolean; reportToken: string | null; queryToken: string | null; onClose: () => void; }`. Parent (BriefForm) owns the state; the Sheet is fully controlled.
+    - When `open && reportToken && queryToken`, fire a fetch to `/api/mode/preview/${reportToken}/${queryToken}?limit=10` and store the result in local state `{ status: "idle" | "loading" | "ready" | "error"; data?: PreviewResult; error?: string }`. On close (Escape, outside-click, X, or onClose), the parent flips `open=false`; the Sheet stays mounted to keep the closing animation smooth.
+    - Header content per the PRD P4: query name (font-medium) + raw token muted underneath (read from `useSpaceCatalog()` — same client cache the comboboxes use; falls back to the raw token if the catalog hasn't resolved). Below: relative-time + Catalunya-time of the last run (when `kind: "ready"`); rows + columns count; Refresh button (lucide `RefreshCw`, ghost xs) that re-fires the fetch with `?force=true`.
+
+  - [ ] 17.10 Wire the `useEffect` fetch lifecycle inside `PreviewSheet` with `AbortController` for stale-request invalidation.
+    - `useEffect(() => { ... }, [open, reportToken, queryToken])` — keyed so opening, switching queries, or re-opening fires a fresh fetch.
+    - Inside the effect: if `!open || !reportToken || !queryToken`, return early. Otherwise create an `AbortController`, set status to `"loading"`, await `fetch(url, { signal: controller.signal })`, parse JSON, set status to `"ready"` with `data`. Catch `AbortError` and bail silently (the user re-clicked Preview on a different query before the previous fetch landed); catch other errors and set status `"error"` with `err.message`.
+    - Cleanup function: `controller.abort()` — guarantees the previous fetch's setState calls are no-ops if a new fetch supersedes it.
+    - A separate `refresh()` function that triggers the same fetch path with `?force=true` — wired to the header's Refresh button. Implementation: bump a local `refreshCounter` state value, add it to the effect's dep array, append `&force=true` when `refreshCounter > 0`. Avoids duplicating the fetch logic.
+
+  - [ ] 17.11 Render the 5 distinct edge-case states inside `PreviewSheet` based on the `PreviewResult` discriminated union.
+    - `loading` → centered shadcn skeleton (3-line placeholder) with «Carregant preview…» below in muted text.
+    - `kind: "ready"` → the `<PreviewTable>` from 17.7. (When `rows.length === 0`, the table itself renders the empty-state footer per 17.7's contract; no special branch needed here.)
+    - `kind: "no-previous-run"` → muted info block: «Cap run previ d'aquest report a Mode. Desa el brief i fes Run Now per disparar el primer fetch.» No error styling — informational.
+    - `kind: "run-failed"` → amber Alert: «L'últim run d'aquest report ha fallat (state: <state>). Tria un altre report o investiga a Mode.» Below: an `<a>` link to `https://app.mode.com/${account}/reports/${reportToken}/runs` (account read from a small `lib/mode-public.ts` helper that exposes only the `account` env value — never the token/secret — to the client; confirm shape during implementation). Open in new tab.
+    - `kind: "query-not-found"` → muted info block: «Aquesta query no apareix dins de l'últim run del report. Pot ser que s'hagi renombrat o esborrat a Mode.»
+    - `error` (the catch path, distinct from `kind: "run-failed"` which is a successful 200 response) → red Alert: «Mode no disponible — torna a provar més tard» + Retry button that calls `refresh()` (which fires `?force=true`).
+
+  - [ ] 17.12 Implement `PreviewButton` (`web/components/PreviewButton.tsx`) — the ghost button rendered next to each `QueryCombobox` row.
+    - Client component. Props: `{ reportToken: string; queryToken: string; onClick: (report: string, query: string) => void; }`.
+    - Layout: `<Button variant="ghost" size="sm">` with lucide `Eye` icon + the English label «Preview data». `disabled` when `!reportToken || !queryToken`.
+    - Disabled-state tooltip: wrap in shadcn `Tooltip` rendering «Selecciona report i query abans de fer preview» on hover/focus. Wrap the disabled button in a `<span tabIndex={0}>` so Radix Tooltip receives the hover event even though `pointer-events: none` is on the disabled child — same idiom `RunNowButton` already uses for the create-mode disabled state.
+    - Click handler: `() => onClick(reportToken, queryToken)`. The parent (`BriefForm`) maps that to its preview-state setter.
+
+  - [ ] 17.13 Plumb `PreviewSheet` state into `BriefForm.tsx` and mount one `PreviewSheet` instance at the form root.
+    - New state slice inside `BriefForm`: `const [preview, setPreview] = useState<{ reportToken: string; queryToken: string } | null>(null);`. Single state shared across all query rows so we never paint two Sheets at once.
+    - Mount `<PreviewSheet open={preview !== null} reportToken={preview?.reportToken ?? null} queryToken={preview?.queryToken ?? null} onClose={() => setPreview(null)} />` at the bottom of the form's JSX, next to the other top-level dialogs (Delete dialog at line ~872, Cancel-create dialog at line ~904 — pattern is the same).
+    - Each query row inside `SourceCard` renders `<PreviewButton reportToken={...} queryToken={...} onClick={(r, q) => setPreview({ reportToken: r, queryToken: q })} />`. The button sits immediately to the right of `<QueryCombobox>` in the query row's flex container. The current `mode_report_token` for the parent source is already in scope via the `Controller` watching `sources.<i>.mode_report_token` — reuse the same `useWatch`.
+
+  - [ ] 17.14 Smoke test on Vercel preview (the project's standard MVP gate; no automated tests). Checklist:
+    1. Open an existing brief whose source uses a real Mode report + query (e.g. `app-version-adoption.yml`). Click the new Preview button next to its query. Sheet opens on the right; loading skeleton briefly, then the table appears with ≤ 10 rows.
+    2. Verify the Sheet header shows the query's human name (from the catalog) + raw token, the run's relative time («fa Xh») + Catalunya date, and the rows/columns count. Refresh button cycles through the loading state and lands back on the same data within ~2 s (cache busted via `?force=true`).
+    3. Close the Sheet (X / Escape / outside-click). Brief form behind is intact (scroll position, edit-mode state).
+    4. Open the Preview Sheet for a query in a different source. Verify the Sheet replaces the previous content (single mounted Sheet, not two).
+    5. Pick a Mode report token that is real but happens to have no successful runs (or create a temporary YAML pointing to one). Preview → «Cap run previ d'aquest report a Mode...» state renders.
+    6. In a brief, change the query token to a non-existent one (free-text path) → Preview → «query-not-found» message renders.
+    7. Curl the endpoint directly: `curl https://<preview>.vercel.app/api/mode/preview/<report>/<query>?limit=5` → JSON response with `kind: "ready"` and at most 5 rows. Repeat with `?force=true` and verify the response time on the second call is similar to the first (cache busted), then a third call without `?force` is instant (cache hit).
+    8. With the Sheet open, edit the query combobox to a different token in the same row. Click Preview again. Verify the previous in-flight fetch was aborted (no console errors, no flicker of stale data).
+
+  - [ ] 17.15 README roadmap entry + final docs sync.
+    - Append to README Roadmap: «17.0 ⏳ Mode data preview — inline «Preview data» button on each BriefForm query row; right-side Sheet shows the last 10 rows of the latest successful Mode run, validating wiring before save.». Mark ✅ at merge time.
+    - Mark every 17.x sub-task `[x]` in this file; on full ship, change the 17.0 parent header to `- [x] **17.0 Mode data preview** ✅`.
+    - **No PRD edits at this stage** — the PRD already reflects the shipped spec (P1-P11 + §7) via the commits landed during the create-prd round. If implementation surfaces a deviation, document it inline at the deviating sub-task and add a «deviation» ribbon-note to the PRD section per the project convention.
