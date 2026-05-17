@@ -682,3 +682,102 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - Append to README Roadmap: «17.0 ⏳ Mode data preview — inline «Preview data» button on each BriefForm query row; right-side Sheet shows the last 10 rows of the latest successful Mode run, validating wiring before save.». Mark ✅ at merge time.
     - Mark every 17.x sub-task `[x]` in this file; on full ship, change the 17.0 parent header to `- [x] **17.0 Mode data preview** ✅`.
     - **No PRD edits at this stage** — the PRD already reflects the shipped spec (P1-P11 + §7) via the commits landed during the create-prd round. If implementation surfaces a deviation, document it inline at the deviating sub-task and add a «deviation» ribbon-note to the PRD section per the project convention.
+- [ ] **18.0 Dry-run output** — PRD §4 «Dry-run output» + §7 «Dry-run output». Branch `feature/18.0-dry-run-output` (already created, branched from the PRD-only base so it does not carry task 16.0 / 17.0 code). The Mode helpers this task needs that are ALSO part of 17.0 (`listQueryRunsForRun`, `getQueryRunResults`, `ModeQueryRun` type) are implemented locally here too — keeping the branches independent. When both PRs land on main, the second-to-merge resolves the helper duplication trivially (the two implementations are intentionally identical). **Operator action**: copy `GROQ_API_KEY` from the GitHub Secrets into the Vercel env-var inventory (Production + Preview, encrypted) before the PR can be smoke-tested.
+
+  - [ ] 18.1 Install the GROQ JS SDK: `cd web && npm install groq-sdk`. Adds it to `package.json` dependencies. The SDK mirrors the OpenAI SDK API (`chat.completions.create` with `stream: true` returning an async iterator), already battle-tested by the Python `executor.py` against `llama-3.3-70b-versatile`.
+
+  - [ ] 18.2 Extend `web/lib/mode.ts` with the helpers the dry-run pipeline needs that are NOT already in this branch (task 18.0 branched before 17.0 landed). Specifically:
+    - `triggerReport(reportToken)` — `POST /api/${account}/reports/${reportToken}/runs`. Mirrors `executor.py:trigger_report`. Returns the new run's token (`{token}` from the response body).
+    - `waitForCompletion(reportToken, runToken, opts?)` — polls `GET /api/${account}/reports/${reportToken}/runs/${runToken}` every 2 s until `state` is in `["completed", "succeeded"]` (success) or a failure terminal state. Throws on failure or timeout (`opts.deadlineMs`, default 120 s — Mode runs typically finish in 5-15 s; 120 s is the safe-but-not-runaway ceiling).
+    - `listQueryRunsForRun(reportToken, runToken)` — `GET /api/${account}/reports/${reportToken}/runs/${runToken}/query_runs`. Returns `_embedded.query_runs[]` with `{ token, query_token?, query_name, state }`.
+    - `getQueryRunResults(reportToken, runToken, queryRunToken)` — `GET /api/${account}/reports/${reportToken}/runs/${runToken}/query_runs/${queryRunToken}/results/content.json`. Returns `Record<string, unknown>[]`.
+    - `getReportMetadata(reportToken)` — `GET /api/${account}/reports/${reportToken}`. Returns `{ name }`. Used to build the «Today's date: …\n\n## Query: "..." (from report "...")» header line in `dryRun.ts:buildUserMessage`.
+    All follow the existing `getConfig()` + `authHeader()` + `throw new Error(...)` patterns of the file. Add a new exported type `ModeQueryRun` to `lib/mode-types.ts` matching what 17.0's identical type defines.
+
+  - [ ] 18.3 Implement `web/lib/groq.ts` — wrapper over the GROQ SDK with streaming support.
+    - Constants: `LLM_MODEL = "llama-3.3-70b-versatile"` (matches `executor.py:LLM_MODEL`), `LLM_TEMPERATURE = 0.7`, `LLM_MAX_TOKENS = 4096`. All exported so the dry-run orchestrator can reference them.
+    - `getGroqClient()`: lazy-construct + return a `Groq` instance from the `groq-sdk` package, reading `GROQ_API_KEY` from `process.env`. Throws a clear error when the env var is missing.
+    - `streamChatCompletion({ systemPrompt, userMessage, signal })`: async generator that yields `{ delta: string }` for each token chunk and finally `{ done: true, usage: { input, output, total } }`. Internally calls `groq.chat.completions.create({ model, messages, stream: true, temperature, max_tokens }, { signal })`. The SDK's stream is an async iterable of chunks shaped like the OpenAI streaming response; project each chunk's `choices[0].delta.content` to a delta, and read the final chunk's `x_groq?.usage` for token counts.
+
+  - [ ] 18.4 Implement `web/lib/dryRun.ts` — the orchestrator that walks Mode then GROQ.
+    - Exports `async function* runDryRun(brief: Brief, signal: AbortSignal): AsyncGenerator<DryRunEvent>` where `DryRunEvent` is:
+      ```ts
+      type DryRunEvent =
+        | { kind: "mode-fetched" }
+        | { kind: "groq-chunk"; delta: string }
+        | { kind: "complete"; usage: { input: number; output: number; total: number } }
+        | { kind: "error"; phase: "mode" | "groq"; message: string };
+      ```
+    - Algorithm:
+      1. For each source in `brief.sources`: `triggerReport` → `waitForCompletion` → `listQueryRunsForRun` → for each query in the brief's source.queries: find the matching `query_run` by token (prefer `query_token`, fall back to `query_name`) → `getQueryRunResults` → accumulate `{ query_name, rows }` pairs.
+      2. After all sources resolved, yield `{ kind: "mode-fetched" }`.
+      3. Build the `userMessage` exactly as `executor.py:build_user_message` does: a compact-JSON serialisation under `## Query: "name" (from report "title")` blocks. Reuse the same compact-JSON shape (`separators: (",", ":")`) so the GROQ output matches what the production executor would emit.
+      4. Call `streamChatCompletion({ systemPrompt: brief.prompt, userMessage, signal })` and yield each `groq-chunk` event.
+      5. Yield the final `complete` event with the usage payload.
+    - Catch errors at each phase boundary; yield `error` event with the phase tag. The route handler converts these into SSE `error` events.
+
+  - [ ] 18.5 Implement `web/app/api/briefs/dry-run/route.ts` — the POST endpoint with SSE response.
+    - File header: `import "server-only";`, `export const runtime = "nodejs";`, `export const dynamic = "force-dynamic";`.
+    - `POST` handler: validate `await request.json()` against `briefSchema`; respond 400 with zod errors on validation failure.
+    - Build a `ReadableStream` that consumes `runDryRun(brief, request.signal)` and emits SSE-formatted lines (`event: <kind>\ndata: <json>\n\n`) for each event.
+    - Set response headers: `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no` (the last header disables nginx-style proxy buffering so chunks reach the client as they're emitted).
+    - On `request.signal.aborted`, the route exits cleanly: the GROQ stream's `signal` aborts → the SDK closes the HTTP connection → the generator completes without yielding further events.
+    - The 502/error mapping happens at the route level: a `try/catch` around the orchestrator wraps any unexpected exception into a final SSE `error` event before closing the stream (so the client always sees a well-formed terminator instead of a torn connection).
+
+  - [ ] 18.6 Implement `web/components/DryRunSheet.tsx` — the controlled side-panel that renders the streamed output.
+    - Client component. shadcn `Sheet side="right"`, `SheetContent className="sm:max-w-2xl"` so the markdown body has room to breathe.
+    - Props: `{ open: boolean; payload: Brief | null; onClose: () => void }`. Parent (the DryRunProvider in 18.8) owns the state; the Sheet is fully controlled.
+    - State machine: `{ status: "idle" | "loading-mode" | "streaming-groq" | "ready" | "cancelled" | "error"; markdown: string; usage?: TokenUsage; error?: string }`. Transitions:
+      - On `open && payload`: status → `"loading-mode"`, markdown = `""`.
+      - SSE `mode-fetched`: status → `"streaming-groq"`.
+      - SSE `groq-chunk`: append `event.delta` to markdown.
+      - SSE `complete`: status → `"ready"`, usage = event.usage.
+      - SSE `error`: status → `"error"`, error = event.message.
+      - Cancel button click OR Sheet close: AbortController.abort() → status → `"cancelled"`, markdown stays as-is (partial output preserved).
+    - Body layout: phase indicator at top (Catalan narrative + spinner during loading-mode / streaming-groq), `<BriefMarkdown>` rendering the accumulated markdown (re-renders incrementally as chunks arrive), token usage line at the foot (visible after `ready`), Cancel button at top right (visible during the two loading phases).
+
+  - [ ] 18.7 Implement the SSE consumer inside `DryRunSheet` using `fetch` + `ReadableStream` reader.
+    - When `open && payload`: create `AbortController`, do `fetch("/api/briefs/dry-run", { method: "POST", body: JSON.stringify(payload), signal: controller.signal })`. Read response body via `res.body.getReader()`; decode chunks via `new TextDecoder()`; buffer-and-split lines on `\n\n` (SSE message boundary); for each complete message, parse the `event:` + `data:` lines and dispatch into the state machine.
+    - Cleanup: `useEffect`'s return function calls `controller.abort()`. The cleanup fires when `open` flips to `false`, when `payload` changes (which it shouldn't mid-run but defensively), or when the component unmounts.
+    - Reuse the same fetch-streaming pattern Vercel's docs recommend for Node-runtime streamed endpoints (EventSource has flaky proxy behaviour in the Vercel edge layer for Node-runtime sources, per their own documentation).
+
+  - [ ] 18.8 Implement `web/hooks/useDryRun.tsx` — the React Context that the three trigger surfaces share.
+    - Exports `DryRunProvider` (a client component wrapping `children` and mounting one `<DryRunSheet>` instance at its root) and `useDryRun()` (hook returning `{ run: (brief: Brief) => void }`).
+    - Provider state: `const [dryRun, setDryRun] = useState<{ payload: Brief } | null>(null);`. The `run(brief)` callback sets `{ payload: brief }`; the Sheet's `onClose` callback resets to `null`.
+    - Mount the provider as high as practical so all three triggers can access it. Two options:
+      - Mount at `app/layout.tsx` root → every page can call `useDryRun`. Risk: leak of the Sheet's heavy `<BriefMarkdown>` import into the root bundle.
+      - Mount at each of the three trigger points → smaller root bundle but the surfaces don't share state (closing the sheet on one trigger doesn't reset the others; each manages its own).
+    - Default to the **first approach** (root mount). The bundle delta is negligible (<5 KB gz) and the shared-state semantics are simpler.
+
+  - [ ] 18.9 Implement `web/components/DryRunButton.tsx` — the trigger button shape used by the three surfaces.
+    - Two prop shapes via discriminated union:
+      ```ts
+      type Props =
+        | { mode: "persisted"; brief: Brief }
+        | { mode: "form"; getBrief: () => Brief };
+      ```
+    - Renders a ghost-variant button with lucide `Sparkles` icon + English label «Preview output». Click handler reads the brief (either directly or via the closure) and calls `useDryRun().run(brief)`.
+    - The form-mode closure path is critical: the BriefForm passes `() => getValues()` (RHF) so the button reads the LATEST form values at click time, not the values that existed at render time. Without this, a user editing for a few minutes then clicking Preview output would dry-run against stale values.
+    - Disabled state: when the brief fails a quick `briefSchema.safeParse(brief)` validation (e.g. empty required fields), show the disabled button with a Catalan Tooltip («Omple els camps obligatoris abans de fer preview»). Same idiom RunNowButton uses on create mode.
+
+  - [ ] 18.10 Mount `DryRunButton mode="persisted"` in the **detail page header** (`app/briefs/[name]/page.tsx`), immediately to the LEFT of the Run Now button. Pass `brief={brief}` (the parsed YAML, already in scope). The DryRunProvider must be mounted at `app/layout.tsx` (per 18.8) so the button can find the context.
+
+  - [ ] 18.11 Mount `DryRunButton mode="form"` in the **form footer in edit mode** (`components/BriefForm.tsx`). Position: a separate row below the existing action row (Edit / Cancel + Save), visible only when `mode === "edit"`. Pass `getBrief={() => methods.getValues()}` where `methods` is the RHF `useForm()` return. The button is rendered in BOTH new-brief mode and existing-brief edit mode (the dry-run is brief-state-only; doesn't care if the brief is persisted).
+
+  - [ ] 18.12 Mount a new `DryRunButton mode="persisted"` entry in the **sidebar kebab** (`components/BriefRowMenu.tsx`). Position: below the existing «History» entry. Each row needs the parsed brief (not just the filename) so the kebab consumer must receive `brief` as a prop from `BriefSidebarList`. The list builder (`getBriefListWithRuns`) already parses each brief; extend the row shape to include the full `Brief` (or the minimum fields the dry-run needs — schema validation will reject anything not matching `briefSchema`, so the full payload is safest).
+
+  - [ ] 18.13 README env-var doc + roadmap entry.
+    - Add `GROQ_API_KEY` to the web-app env-vars list in README's «Web app» section (placement next to the existing `MODE_TOKEN` block). Note that the value already exists in GitHub Secrets — operator copies it into Vercel.
+    - Append to Roadmap: «18.0 ⏳ Dry-run output — «Preview output» from detail header, form footer or sidebar kebab streams a no-Slack, no-commit dry-run of the brief; 5-15 s end-to-end with progressive markdown rendering.». Flip to ✅ at merge time.
+
+  - [ ] 18.14 Smoke test on Vercel preview (the project's standard MVP gate; no automated tests). Checklist:
+    1. Open an existing brief in detail mode → click «Preview output» in the header → Sheet opens, shows «Carregant Mode data…» for 5-10 s, transitions to «Generant amb GROQ…» with text streaming, ends with «Llest» + token usage line. The output matches what Run Now would post to Slack (run a Run Now in parallel and eyeball-compare).
+    2. Enter edit mode → tweak the prompt («Sigues més curt», «Afegeix percentatges», etc.) → click «Preview output» from the form footer → the new prompt's output streams; no Save was needed; closing the Sheet and re-opening starts a NEW generation (non-deterministic LLM output is the value).
+    3. Click «Preview output» from the sidebar kebab → same flow as (1), no navigation needed.
+    4. Click Cancel during the streaming phase → stream stops, partial output stays on screen with «(Cancel·lat)» badge.
+    5. Close the Sheet (X / Escape / outside-click) mid-stream → same as Cancel — output preserved frozen.
+    6. Verify NO `.run.json` artifact appears in GitHub Actions for these dry-runs (the executor pipeline was never invoked).
+    7. Verify NO Slack message appears in the brief's channel.
+    8. Verify `/history` does NOT show the dry-run output (artifact-backed read path; dry-runs don't write artifacts).
+    9. Curl directly: `curl -X POST https://<preview>.vercel.app/api/briefs/dry-run -H 'content-type: application/json' -d @brief.json` → response is `text/event-stream` with `event: groq-chunk\ndata: ...` lines.
+    10. Operator-only check: dispatch a `/api/briefs/dry-run` call WITHOUT setting GROQ_API_KEY in Vercel → endpoint should respond cleanly with an `error` SSE event explaining the missing env var, NOT a 500 / uncaught exception.
