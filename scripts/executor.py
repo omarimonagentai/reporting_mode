@@ -12,7 +12,9 @@ Usage:
 
 The brief YAML schema (see briefs/*.yml for examples):
     name: str
-    schedule: cron string                (read by due_runner.py, ignored here)
+    schedule: cron string                (read by web/app/api/scheduler/tick,
+                                          ignored here — the executor runs a
+                                          single brief without looking at when)
     slack_channel: str                   (target channel for chat.postMessage)
     reference_link: str                  (optional; URL appended at the end of
                                           the Slack message as a clickable link)
@@ -424,10 +426,10 @@ def save_artifacts(brief, brief_path, sources_data, brief_text):
       `GET /api/briefs/[name]/outputs` endpoint surfaces so users can
       read past brief outputs without opening Slack.
 
-    The workflows (`run-brief.yml`, `run-due-briefs.yml`) upload both
-    files (and `<slug>.run.json` written by `write_run_record`) as a
-    single artifact. The caller in `main()` invokes this best-effort:
-    a write failure is logged and the Slack post continues.
+    The `run-brief.yml` workflow uploads both files (and `<slug>.run.json`
+    written by `write_run_record`) as a single artifact. The caller in
+    `main()` invokes this best-effort: a write failure is logged and the
+    Slack post continues.
     """
     OUT_DIR.mkdir(exist_ok=True)
     slug = brief_slug_from_path(brief_path)
