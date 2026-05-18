@@ -818,9 +818,16 @@ export function BriefForm(props: Props) {
                 {...register("name")}
                 aria-invalid={shouldShowError("name") && !!errors.name}
                 placeholder="Posa-li un nom · ex: App version adoption — weekly"
+                // The shadcn Input ships with `text-base md:text-sm` —
+                // its `md:` variant wins by source order regardless of
+                // anything we append without the same breakpoint
+                // prefix. Mirror the breakpoint to fully override so
+                // the edit-mode title matches the view-mode <h1> size.
                 className={cn(
-                  "h-auto min-w-0 flex-1 border-0 border-b-2 border-transparent bg-transparent px-0 font-semibold text-zinc-900 placeholder:font-normal placeholder:text-zinc-500 placeholder-shown:border-dashed placeholder-shown:border-zinc-300 shadow-none transition-[font-size,border-color] duration-150 focus-visible:ring-0",
-                  stuck ? "text-base" : "text-2xl"
+                  "h-auto min-w-0 flex-1 rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 font-semibold text-zinc-900 placeholder:font-normal placeholder:text-zinc-500 placeholder-shown:border-dashed placeholder-shown:border-zinc-300 shadow-none transition-[font-size,border-color] duration-150 focus-visible:ring-0",
+                  stuck
+                    ? "text-base md:text-base"
+                    : "text-2xl md:text-2xl"
                 )}
               />
               <FieldHint text={FIELD_HELP.name} label="Brief Name" />
