@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, GripVertical, RefreshCw } from "lucide-react";
 import { PreviewTable } from "@/components/PreviewTable";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,6 +13,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useResizableSheetWidth } from "@/hooks/useResizableSheetWidth";
 import { formatCatalunyaDateTime, relativeFromPast } from "@/lib/cron";
 import { useSpaceCatalog } from "@/lib/spaceCatalogClient";
 import type { PreviewResult } from "@/lib/preview-types";
@@ -23,21 +24,6 @@ type Props = {
   queryToken: string | null;
   onClose: () => void;
 };
-
-const WIDTH_STORAGE_KEY = "preview-sheet:width";
-const MIN_WIDTH = 480;
-const MAX_WIDTH = 1400;
-const DEFAULT_WIDTH = 672;
-
-function loadWidth(): number {
-  if (typeof window === "undefined") return DEFAULT_WIDTH;
-  const raw = window.localStorage.getItem(WIDTH_STORAGE_KEY);
-  const n = raw ? parseInt(raw, 10) : NaN;
-  if (!Number.isFinite(n) || n < MIN_WIDTH || n > MAX_WIDTH) {
-    return DEFAULT_WIDTH;
-  }
-  return n;
-}
 
 type State =
   | { kind: "idle" }
@@ -53,57 +39,7 @@ export function PreviewSheet({
 }: Props) {
   const [state, setState] = useState<State>({ kind: "idle" });
   const [refreshCounter, setRefreshCounter] = useState(0);
-  const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
-  const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(
-    null
-  );
-
-  useEffect(() => {
-    setWidth(loadWidth());
-  }, []);
-
-  // Drag-handle logic uses pointer capture on the handle element
-  // itself rather than window-level listeners. The previous
-  // implementation attached pointermove + pointerup to `window`,
-  // which Radix Dialog's pointer-event interception inside the
-  // SheetContent silently swallowed — the handle was visible but
-  // unresponsive. setPointerCapture binds the pointer to the
-  // handle for the duration of the drag, so every move/up event
-  // routes to it regardless of cursor position.
-  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    dragStateRef.current = { startX: e.clientX, startWidth: width };
-  }
-
-  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const s = dragStateRef.current;
-    if (!s) return;
-    const dx = s.startX - e.clientX;
-    const next = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, s.startWidth + dx));
-    setWidth(next);
-  }
-
-  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
-    if (!dragStateRef.current) return;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      // ignore — capture may have been released already
-    }
-    const finalWidth = (() => {
-      const s = dragStateRef.current;
-      if (!s) return width;
-      const dx = s.startX - e.clientX;
-      return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, s.startWidth + dx));
-    })();
-    dragStateRef.current = null;
-    try {
-      window.localStorage.setItem(WIDTH_STORAGE_KEY, String(finalWidth));
-    } catch {
-      // ignore quota / disabled storage
-    }
-  }
+  const { width, handleProps } = useResizableSheetWidth();
 
   useEffect(() => {
     if (!open || !reportToken || !queryToken) {
@@ -165,11 +101,15 @@ export function PreviewSheet({
         style={{ width: `${width}px` }}
       >
         <div
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
+          {...handleProps}
           aria-hidden
-          className="group absolute inset-y-0 left-0 z-30 flex w-3 cursor-col-resize touch-none select-none items-center justify-center transition-colors hover:bg-zinc-100"
+          // [&_svg]:pointer-events-none — without this, the inner
+          // GripVertical SVG intercepts pointerdown before the
+          // wrapper's listener fires (lucide icons default to
+          // pointer-events: auto), so the drag never starts.
+          // before:absolute … extends the hit area ~6 px beyond
+          // each visible edge so the 6 px line is easier to grab.
+          className="group absolute inset-y-0 left-0 z-30 flex w-1.5 cursor-col-resize touch-none select-none items-center justify-center transition-colors before:absolute before:-left-1.5 before:-right-1.5 before:inset-y-0 before:content-[''] hover:bg-zinc-100 [&_svg]:pointer-events-none"
         >
           <GripVertical className="size-3 text-zinc-300 transition-colors group-hover:text-zinc-500" />
         </div>

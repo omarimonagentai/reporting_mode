@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   AlertTriangle,
   Bot,
+  GripVertical,
   Send,
   Square,
   Trash2,
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { usePromptAssistant } from "@/hooks/usePromptAssistant";
+import { useResizableSheetWidth } from "@/hooks/useResizableSheetWidth";
 import { cn } from "@/lib/utils";
 import type { Brief } from "@/lib/schemas";
 
@@ -99,6 +101,7 @@ export function PromptAssistantSheet({
   storageKey,
 }: Props) {
   const { applyPrompt } = usePromptAssistant();
+  const { width, handleProps } = useResizableSheetWidth();
   const [state, setState] = useState<State>({
     messages: [],
     status: "idle",
@@ -284,8 +287,16 @@ export function PromptAssistantSheet({
       >
         <SheetContent
           side="right"
-          className="flex w-full flex-col sm:max-w-2xl"
+          className="flex flex-col sm:max-w-none"
+          style={{ width: `${width}px` }}
         >
+          <div
+            {...handleProps}
+            aria-hidden
+            className="group absolute inset-y-0 left-0 z-30 flex w-1.5 cursor-col-resize touch-none select-none items-center justify-center transition-colors before:absolute before:-left-1.5 before:-right-1.5 before:inset-y-0 before:content-[''] hover:bg-zinc-100 [&_svg]:pointer-events-none"
+          >
+            <GripVertical className="size-3 text-zinc-300 transition-colors group-hover:text-zinc-500" />
+          </div>
           <SheetHeader className="shrink-0 pr-12">
             <SheetTitle className="flex items-center justify-between gap-3">
               <span className="flex items-center gap-2 text-base font-medium">

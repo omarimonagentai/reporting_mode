@@ -907,7 +907,7 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - **PD2 reorder kebab items**: in `BriefRowMenu.tsx`, the current vertical order inside the PopoverContent is `Edit / Run Now (button) / History / Preview output (button) / PublishToggleButton`. Move the Preview button block immediately AFTER the Edit MenuLink and BEFORE the Run Now button. Final order: Edit · Preview · Run Now · History · Publish/Unpublish.
     - No change to logic, icons, hover states, disabled states, dispatch behaviour — pure reorder + literal swap.
 
-  - [ ] 20.8 New hook `web/hooks/useResizableSheetWidth.tsx` — encapsulates the resize state + pointer-capture handlers.
+  - [x] 20.8 New hook `web/hooks/useResizableSheetWidth.tsx` — encapsulates the resize state + pointer-capture handlers.
     - File path matches the existing hook pattern: `web/hooks/useDryRun.tsx`, `web/hooks/usePromptAssistant.tsx`, `web/hooks/useRunNow.tsx` all live in `web/hooks/`.
     - Exports `useResizableSheetWidth()` returning `{ width: number; handleProps: { onPointerDown, onPointerMove, onPointerUp } }`.
     - Internalises constants and the storage key:
@@ -921,13 +921,13 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - Drag logic: lift verbatim from `PreviewSheet.tsx:65-106` — the `onPointerDown` / `onPointerMove` / `onPointerUp` handlers and the `dragStateRef` are already in their final shape. Persist on `pointerUp` with the same try/catch around localStorage.
     - The hook does NOT render the handle div; that's the consumer's responsibility (different aesthetics per Sheet, e.g. different z-index near close buttons).
 
-  - [ ] 20.9 Adopt `useResizableSheetWidth` in `PreviewSheet.tsx` + ship the PD8 drag bug fix.
+  - [x] 20.9 Adopt `useResizableSheetWidth` in `PreviewSheet.tsx` + ship the PD8 drag bug fix.
     - Replace the inlined `width` state + pointer handlers (the entire block lines ~27-106) with `const { width, handleProps } = useResizableSheetWidth();`. Apply `{...handleProps}` to the existing handle `<div>`.
     - **PD8 fix — the actual drag-broken bug** lands here: add `[&_svg]:pointer-events-none` to the handle div's className. The inner `GripVertical` SVG was intercepting `pointerdown` before the parent listener fired (lucide-react icons render as inline SVGs with default `pointer-events: auto`, and Radix Dialog's pointer-events plumbing inside SheetContent doesn't help). Verifying after the fix: hovering over the icon shows `col-resize` cursor and drag responds.
     - Optional refinement: widen the visible handle from `w-3` (12 px) to `w-1.5` (6 px) — the handle becomes a thinner line — and extend the hit area to ~16 px via `before:absolute before:-left-1.5 before:-right-1.5 before:inset-y-0 before:content-['']` on the handle div. Net effect: the visible affordance is more discreet but easier to grab.
     - The localStorage key changes from `preview-sheet:width` (the old PreviewSheet-only key) to the shared `right-sheet:width`. Any pre-existing user-saved width on the old key is silently ignored after this lands — acceptable since the field was alpha behaviour with very few users having custom widths.
 
-  - [ ] 20.10 Adopt `useResizableSheetWidth` in the three remaining right-side Sheets.
+  - [x] 20.10 Adopt `useResizableSheetWidth` in the three remaining right-side Sheets.
     - `web/components/DryRunSheet.tsx`: locate the SheetContent (currently `<SheetContent side="right" className="flex w-full flex-col sm:max-w-2xl">`). Switch to `<SheetContent side="right" className="flex flex-col sm:max-w-none" style={{ width }}>` (drop `w-full`, add `sm:max-w-none` to override the shadcn default 24rem cap). Mount the same handle `<div>` used in PreviewSheet just inside SheetContent.
     - `web/components/PromptAssistantSheet.tsx`: same pattern. Existing className `"flex w-full flex-col sm:max-w-2xl"` → `"flex flex-col sm:max-w-none"` + dynamic width + handle.
     - `web/components/HistoryDrawerButton.tsx`: this file owns the SheetContent for the history drawer; the inner `HistoryFeed` is the body. Apply the same pattern at the SheetContent.

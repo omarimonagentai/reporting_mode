@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  GripVertical,
   Loader2,
   Sparkles,
   Square,
@@ -19,6 +20,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useResizableSheetWidth } from "@/hooks/useResizableSheetWidth";
 import type { Brief } from "@/lib/schemas";
 import { setLastDryRun } from "@/lib/dryRunTracking";
 import { buildSlackRawModePreview } from "@/lib/dryRunPreview";
@@ -65,6 +67,7 @@ type State =
 
 export function DryRunSheet({ open, payload, filename, onClose }: Props) {
   const [state, setState] = useState<State>({ kind: "idle" });
+  const { width, handleProps } = useResizableSheetWidth();
 
   useEffect(() => {
     if (!open || !payload) {
@@ -222,7 +225,18 @@ export function DryRunSheet({ open, payload, filename, onClose }: Props) {
         if (!next) onClose();
       }}
     >
-      <SheetContent side="right" className="flex w-full flex-col sm:max-w-2xl">
+      <SheetContent
+        side="right"
+        className="flex flex-col sm:max-w-none"
+        style={{ width: `${width}px` }}
+      >
+        <div
+          {...handleProps}
+          aria-hidden
+          className="group absolute inset-y-0 left-0 z-30 flex w-1.5 cursor-col-resize touch-none select-none items-center justify-center transition-colors before:absolute before:-left-1.5 before:-right-1.5 before:inset-y-0 before:content-[''] hover:bg-zinc-100 [&_svg]:pointer-events-none"
+        >
+          <GripVertical className="size-3 text-zinc-300 transition-colors group-hover:text-zinc-500" />
+        </div>
         <SheetHeader className="shrink-0 pr-12">
           <SheetTitle className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-2 text-base font-medium">
