@@ -872,7 +872,7 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - Suppress the «Cancel» button when `status === "raw-mode"` (no GROQ stream to cancel; Mode fetch is cancellable via Sheet close).
     - Suppress the token-usage line at the bottom when `status === "raw-mode"`.
 
-  - [ ] 20.6 Empty-prompt CSV gate (PD4) — zod cross-field validation + BriefForm hint.
+  - [x] 20.6 Empty-prompt CSV gate (PD4) — zod cross-field validation + BriefForm hint.
     - File 1 — `web/lib/schemas.ts`: append `.superRefine((brief, ctx) => { ... })` to the `briefSchema`:
       ```ts
       .superRefine((brief, ctx) => {
