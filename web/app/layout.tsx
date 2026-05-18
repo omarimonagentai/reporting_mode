@@ -56,7 +56,7 @@ export default async function RootLayout({
             </>
           ) : (
             <DryRunProvider>
-              <div className="flex min-h-screen">
+              <div className="flex h-screen">
                 <aside className="w-[280px] shrink-0 border-r border-zinc-200 bg-white flex flex-col">
                   <div className="flex-1 overflow-y-auto">
                     <Suspense fallback={<SidebarSkeleton />}>

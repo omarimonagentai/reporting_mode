@@ -787,10 +787,19 @@ export function BriefForm(props: Props) {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div
         className={cn(
-          "sticky top-0 z-20 -mx-8 px-8 transition-[padding,background-color,box-shadow,border-color] duration-150",
+          // Background + backdrop-blur are applied UNCONDITIONALLY so
+          // form content scrolling under the sticky bar is always
+          // hidden. The /95 alpha keeps a faint trace of the form
+          // showing through; combined with backdrop-blur the result
+          // is "frosted" — clearly a separate layer without looking
+          // like a hard solid block disconnected from the page.
+          "sticky top-0 z-20 -mx-8 border-b bg-zinc-50/95 px-8 backdrop-blur-sm transition-[padding,border-color] duration-150",
+          // The border + padding tighten when stuck, marking the
+          // transition from "title sitting at top of form" to
+          // "compact toolbar floating over content".
           stuck
-            ? "border-b border-zinc-200 bg-zinc-50/95 py-3 backdrop-blur"
-            : "border-b border-transparent bg-transparent py-0"
+            ? "border-zinc-200 py-3"
+            : "border-transparent py-4"
         )}
       >
         {/* Sentinel positioned 1px above the sticky header's top. The
@@ -801,59 +810,73 @@ export function BriefForm(props: Props) {
           aria-hidden
           className="pointer-events-none absolute -top-px left-0 h-px w-px"
         />
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            {isEditing ? (
-              <>
-                <Input
-                  id="name"
-                  {...register("name")}
-                  aria-invalid={shouldShowError("name") && !!errors.name}
-                  placeholder="Sense títol · ex: App version adoption — weekly"
-                  className={cn(
-                    "h-auto min-w-0 flex-1 border-0 bg-transparent px-0 font-semibold text-zinc-900 placeholder:font-normal placeholder:text-zinc-400 shadow-none transition-[font-size] duration-150 focus-visible:ring-0",
-                    stuck ? "text-base" : "text-2xl"
-                  )}
-                />
-                <FieldHint text={FIELD_HELP.name} label="Brief Name" />
-              </>
-            ) : (
-              <>
-                <h1
-                  className={cn(
-                    "min-w-0 truncate font-semibold text-zinc-900 transition-[font-size] duration-150",
-                    stuck ? "text-base" : "text-2xl"
-                  )}
-                >
-                  {brief.name}
-                </h1>
-                {!isCreate && (
-                  <PublishedBadge
-                    published={brief.published}
-                    className="shrink-0"
-                  />
+        <div className="flex min-w-0 items-center gap-2">
+          {isEditing ? (
+            <>
+              <Input
+                id="name"
+                {...register("name")}
+                aria-invalid={shouldShowError("name") && !!errors.name}
+                placeholder="Posa-li un nom · ex: App version adoption — weekly"
+                // The shadcn Input ships with `text-base md:text-sm` —
+                // its `md:` variant wins by source order regardless of
+                // anything we append without the same breakpoint
+                // prefix. Mirror the breakpoint to fully override so
+                // the edit-mode title matches the view-mode <h1> size.
+                className={cn(
+                  "h-auto min-w-0 flex-1 rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 font-semibold text-zinc-900 placeholder:font-normal placeholder:text-zinc-500 placeholder-shown:border-dashed placeholder-shown:border-zinc-300 shadow-none transition-[font-size,border-color] duration-150 focus-visible:ring-0",
+                  stuck
+                    ? "text-base md:text-base"
+                    : "text-2xl md:text-2xl"
                 )}
-              </>
-            )}
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            {actionButtons}
-            {isEditing && (
-              <DryRunButton
-                mode="form"
-                getBrief={() => getValues() as Brief}
-                disabled={!isValid}
-                filename={isCreate ? undefined : props.filename}
               />
-            )}
-            {props.briefActions}
-          </div>
+              <FieldHint text={FIELD_HELP.name} label="Brief Name" />
+            </>
+          ) : (
+            <>
+              <h1
+                className={cn(
+                  "min-w-0 truncate font-semibold text-zinc-900 transition-[font-size] duration-150",
+                  stuck ? "text-base" : "text-2xl"
+                )}
+              >
+                {brief.name}
+              </h1>
+              {!isCreate && (
+                <PublishedBadge
+                  published={brief.published}
+                  className="shrink-0"
+                />
+              )}
+            </>
+          )}
         </div>
         {shouldShowError("name") && (
           <FieldError message={errors.name?.message} />
         )}
-        {validityHint}
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-2 transition-[margin] duration-150",
+            stuck ? "mt-2" : "mt-3"
+          )}
+        >
+          {actionButtons}
+          {isEditing && (
+            <DryRunButton
+              mode="form"
+              getBrief={() => getValues() as Brief}
+              disabled={!isValid}
+              filename={isCreate ? undefined : props.filename}
+            />
+          )}
+          {props.briefActions}
+        </div>
       </div>
+
+      {/* Validity hint lives just below the sticky bar (not inside it)
+          so the header itself stays a single visual row. The hint
+          still scrolls under the sticky on its own. */}
+      {validityHint && <div className="-mt-4">{validityHint}</div>}
 
       {props.metadataSlot && <div>{props.metadataSlot}</div>}
 
