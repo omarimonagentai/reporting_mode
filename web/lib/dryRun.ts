@@ -13,10 +13,18 @@ import { streamChatCompletion, type TokenUsage } from "@/lib/groq";
 export type DryRunEvent =
   | { kind: "mode-fetched" }
   | { kind: "groq-chunk"; delta: string }
-  | { kind: "complete"; usage: TokenUsage }
+  | {
+      kind: "raw-mode-data";
+      queryName: string;
+      reportTitle: string;
+      columns: string[];
+      rows: Record<string, unknown>[];
+      total_rows: number;
+    }
+  | { kind: "complete"; usage: TokenUsage | null }
   | { kind: "error"; phase: "mode" | "groq"; message: string };
 
-type QueryResult = {
+export type QueryResult = {
   reportTitle: string;
   queryName: string;
   rows: Record<string, unknown>[];
@@ -73,7 +81,7 @@ export async function* runDryRun(
   }
 }
 
-async function fetchAllSources(
+export async function fetchAllSources(
   brief: Brief,
   signal: AbortSignal
 ): Promise<QueryResult[]> {
@@ -126,4 +134,45 @@ function buildUserMessage(results: QueryResult[]): string {
     parts.push("");
   }
   return parts.join("\n");
+}
+
+/**
+ * Raw-mode path: brief has no prompt → no GROQ call. Walks the same
+ * Mode pipeline as runDryRun (reuses fetchAllSources) but yields a
+ * raw-mode-data event per query instead of streaming markdown chunks.
+ *
+ * Mirrors the executor's raw-mode behaviour at scripts/executor.py:540-545
+ * — the user opted out of LLM generation; the Slack post in production
+ * is a short header + CSV attachments. The Sheet on the web side renders
+ * the same data inline so the user can validate what would be published.
+ */
+export async function* runRawModeDryRun(
+  brief: Brief,
+  signal: AbortSignal
+): AsyncGenerator<DryRunEvent> {
+  let results: QueryResult[];
+  try {
+    results = await fetchAllSources(brief, signal);
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      return;
+    }
+    const message = err instanceof Error ? err.message : "Unknown Mode error";
+    yield { kind: "error", phase: "mode", message };
+    return;
+  }
+
+  for (const result of results) {
+    const columns = Object.keys(result.rows[0] ?? {});
+    yield {
+      kind: "raw-mode-data",
+      queryName: result.queryName,
+      reportTitle: result.reportTitle,
+      columns,
+      rows: result.rows.slice(0, 10),
+      total_rows: result.rows.length,
+    };
+  }
+
+  yield { kind: "complete", usage: null };
 }

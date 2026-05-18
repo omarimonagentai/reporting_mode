@@ -2,7 +2,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 
-import { runDryRun, type DryRunEvent } from "@/lib/dryRun";
+import { runDryRun, runRawModeDryRun, type DryRunEvent } from "@/lib/dryRun";
 import { briefSchema } from "@/lib/schemas";
 
 export const runtime = "nodejs";
@@ -31,12 +31,18 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
   const brief = parsed.data;
+  const prompt = brief.prompt.trim();
+  const rawMode = prompt === "";
+  console.log("[dry-run]", { brief: brief.name, mode: rawMode ? "raw" : "groq" });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      const generator = rawMode
+        ? runRawModeDryRun(brief, request.signal)
+        : runDryRun(brief, request.signal);
       try {
-        for await (const event of runDryRun(brief, request.signal)) {
+        for await (const event of generator) {
           controller.enqueue(encoder.encode(sseLine(event)));
         }
       } catch (err) {

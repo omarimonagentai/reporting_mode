@@ -60,7 +60,7 @@ export function DryRunButton(props: Props) {
           <span tabIndex={0} className="inline-flex">
             <Button type="button" variant="outline" size={size} disabled>
               <Sparkles />
-              Preview output
+              Preview
             </Button>
           </span>
         </TooltipTrigger>
@@ -74,7 +74,7 @@ export function DryRunButton(props: Props) {
   return (
     <Button type="button" variant="outline" size={size} onClick={onClick}>
       <Sparkles />
-      Preview output
+      Preview
     </Button>
   );
 }

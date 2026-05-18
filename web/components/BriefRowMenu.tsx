@@ -111,6 +111,23 @@ export function BriefRowMenu({
           />
           <button
             type="button"
+            disabled={previewLoading}
+            onClick={onPreviewOutput}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition-colors",
+              "text-zinc-700 hover:bg-zinc-100",
+              "disabled:cursor-not-allowed disabled:text-zinc-400 disabled:hover:bg-transparent"
+            )}
+          >
+            {previewLoading ? (
+              <Loader2 className="size-4 animate-spin text-zinc-500" />
+            ) : (
+              <Sparkles className="size-4 text-zinc-500" />
+            )}
+            Preview
+          </button>
+          <button
+            type="button"
             disabled={runDisabled}
             onClick={onRunClick}
             className={cn(
@@ -127,23 +144,6 @@ export function BriefRowMenu({
             icon={<History className="size-4 text-zinc-500" />}
             label="History"
           />
-          <button
-            type="button"
-            disabled={previewLoading}
-            onClick={onPreviewOutput}
-            className={cn(
-              "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition-colors",
-              "text-zinc-700 hover:bg-zinc-100",
-              "disabled:cursor-not-allowed disabled:text-zinc-400 disabled:hover:bg-transparent"
-            )}
-          >
-            {previewLoading ? (
-              <Loader2 className="size-4 animate-spin text-zinc-500" />
-            ) : (
-              <Sparkles className="size-4 text-zinc-500" />
-            )}
-            Preview output
-          </button>
           <PublishToggleButton
             filename={filename}
             published={published}

@@ -43,7 +43,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { humanize } from "@/lib/cron";
-import { briefSchema, type Brief } from "@/lib/schemas";
+import {
+  briefSchema,
+  EMPTY_PROMPT_NEEDS_CSV,
+  type Brief,
+} from "@/lib/schemas";
 
 type FormMode = "view" | "edit";
 
@@ -710,10 +714,20 @@ export function BriefForm(props: Props) {
       </div>
     );
 
+  // Root-level cross-field issues from zod's superRefine land under
+  // errors.root. PD4's empty-prompt-needs-csv gate surfaces here so
+  // the hint can explain why Save is disabled even when every visible
+  // field looks fine.
+  const rootErrorMessage = (errors as { root?: { message?: string } }).root
+    ?.message;
+  const isEmptyPromptCsvIssue = rootErrorMessage === EMPTY_PROMPT_NEEDS_CSV;
+
   const validityHint =
     mode === "edit" && !isValid ? (
       <p className="mt-2 text-right text-xs text-zinc-500">
-        {isCreate
+        {isEmptyPromptCsvIssue
+          ? "Sense prompt, almenys una query ha de tenir CSV activat per tenir contingut a publicar a Slack."
+          : isCreate
           ? "Omple els camps obligatoris per crear el brief."
           : "Hi ha camps obligatoris buits o invàlids; revisa els avisos en vermell."}
       </p>

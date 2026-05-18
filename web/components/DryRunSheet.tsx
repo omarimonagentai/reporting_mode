@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  GripVertical,
   Loader2,
   Sparkles,
   Square,
 } from "lucide-react";
 import { BriefMarkdown } from "@/components/BriefMarkdown";
+import { PreviewTable } from "@/components/PreviewTable";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,8 +20,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useResizableSheetWidth } from "@/hooks/useResizableSheetWidth";
 import type { Brief } from "@/lib/schemas";
 import { setLastDryRun } from "@/lib/dryRunTracking";
+import { buildSlackRawModePreview } from "@/lib/dryRunPreview";
 
 type Props = {
   open: boolean;
@@ -35,6 +39,14 @@ type Props = {
 
 type TokenUsage = { input: number; output: number; total: number };
 
+type RawModeQuery = {
+  queryName: string;
+  reportTitle: string;
+  columns: string[];
+  rows: Record<string, unknown>[];
+  total_rows: number;
+};
+
 type State =
   | { kind: "idle" }
   | { kind: "loading-mode" }
@@ -44,6 +56,7 @@ type State =
       markdown: string;
       usage: TokenUsage;
     }
+  | { kind: "raw-mode"; queries: RawModeQuery[] }
   | { kind: "cancelled"; markdown: string }
   | {
       kind: "error";
@@ -54,6 +67,7 @@ type State =
 
 export function DryRunSheet({ open, payload, filename, onClose }: Props) {
   const [state, setState] = useState<State>({ kind: "idle" });
+  const { width, handleProps } = useResizableSheetWidth();
 
   useEffect(() => {
     if (!open || !payload) {
@@ -64,6 +78,7 @@ export function DryRunSheet({ open, payload, filename, onClose }: Props) {
     (async () => {
       setState({ kind: "loading-mode" });
       let accumulated = "";
+      const rawModeQueries: RawModeQuery[] = [];
 
       try {
         const res = await fetch("/api/briefs/dry-run", {
@@ -121,9 +136,14 @@ export function DryRunSheet({ open, payload, filename, onClose }: Props) {
             let event: {
               kind: string;
               delta?: string;
-              usage?: TokenUsage;
+              usage?: TokenUsage | null;
               phase?: "mode" | "groq";
               message?: string;
+              queryName?: string;
+              reportTitle?: string;
+              columns?: string[];
+              rows?: Record<string, unknown>[];
+              total_rows?: number;
             };
             try {
               event = JSON.parse(json);
@@ -138,12 +158,27 @@ export function DryRunSheet({ open, payload, filename, onClose }: Props) {
                 kind: "streaming-groq",
                 markdown: accumulated,
               });
-            } else if (event.kind === "complete" && event.usage) {
-              setState({
-                kind: "ready",
-                markdown: accumulated,
-                usage: event.usage,
+            } else if (event.kind === "raw-mode-data") {
+              rawModeQueries.push({
+                queryName: event.queryName ?? "",
+                reportTitle: event.reportTitle ?? "",
+                columns: event.columns ?? [],
+                rows: event.rows ?? [],
+                total_rows: event.total_rows ?? 0,
               });
+              setState({ kind: "raw-mode", queries: [...rawModeQueries] });
+            } else if (event.kind === "complete") {
+              if (event.usage) {
+                // GROQ path: transition to ready with token usage.
+                setState({
+                  kind: "ready",
+                  markdown: accumulated,
+                  usage: event.usage,
+                });
+              }
+              // Either path: mark the preview as recent so RunNowButton
+              // can skip its «no preview yet» confirmation. Raw-mode
+              // counts because the user did see what would be posted.
               if (filename) setLastDryRun(filename);
             } else if (event.kind === "error" && event.message) {
               setState({
@@ -190,12 +225,23 @@ export function DryRunSheet({ open, payload, filename, onClose }: Props) {
         if (!next) onClose();
       }}
     >
-      <SheetContent side="right" className="flex w-full flex-col sm:max-w-2xl">
+      <SheetContent
+        side="right"
+        className="flex flex-col sm:max-w-none"
+        style={{ width: `${width}px` }}
+      >
+        <div
+          {...handleProps}
+          aria-hidden
+          className="group absolute inset-y-0 left-0 z-30 flex w-1.5 cursor-col-resize touch-none select-none items-center justify-center transition-colors before:absolute before:-left-1.5 before:-right-1.5 before:inset-y-0 before:content-[''] hover:bg-zinc-100 [&_svg]:pointer-events-none"
+        >
+          <GripVertical className="size-3 text-zinc-300 transition-colors group-hover:text-zinc-500" />
+        </div>
         <SheetHeader className="shrink-0 pr-12">
           <SheetTitle className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-2 text-base font-medium">
               <Sparkles className="size-4 text-zinc-500" />
-              Preview output
+              Preview
             </span>
             {(state.kind === "loading-mode" ||
               state.kind === "streaming-groq") && (
@@ -215,7 +261,7 @@ export function DryRunSheet({ open, payload, filename, onClose }: Props) {
           </SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto px-4 pb-6">
-          <DryRunBody state={state} />
+          <DryRunBody state={state} briefName={payload?.name ?? ""} />
         </div>
       </SheetContent>
     </Sheet>
@@ -248,6 +294,14 @@ function PhaseIndicator({ state }: { state: State }) {
           Total {state.usage.total} tokens
         </span>
       );
+    case "raw-mode":
+      return (
+        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700">
+          <CheckCircle2 className="size-3" />
+          Llest · Raw mode (sense LLM) · {state.queries.length}{" "}
+          {state.queries.length === 1 ? "query" : "queries"}
+        </span>
+      );
     case "cancelled":
       return (
         <span className="text-xs text-zinc-500">
@@ -264,7 +318,13 @@ function PhaseIndicator({ state }: { state: State }) {
   }
 }
 
-function DryRunBody({ state }: { state: State }) {
+function DryRunBody({
+  state,
+  briefName,
+}: {
+  state: State;
+  briefName: string;
+}) {
   if (state.kind === "idle") {
     return null;
   }
@@ -301,6 +361,10 @@ function DryRunBody({ state }: { state: State }) {
     );
   }
 
+  if (state.kind === "raw-mode") {
+    return <RawModeBody queries={state.queries} briefName={briefName} />;
+  }
+
   return (
     <div className="pt-4">
       <BriefMarkdown>{state.markdown}</BriefMarkdown>
@@ -309,6 +373,72 @@ function DryRunBody({ state }: { state: State }) {
           (Cancel·lat)
         </p>
       )}
+    </div>
+  );
+}
+
+function RawModeBody({
+  queries,
+  briefName,
+}: {
+  queries: RawModeQuery[];
+  briefName: string;
+}) {
+  const slackMock = buildSlackRawModePreview(briefName, queries);
+
+  return (
+    <div className="space-y-6 pt-4">
+      <Alert>
+        <AlertTitle>Raw mode</AlertTitle>
+        <AlertDescription>
+          Aquest brief no té prompt — no s&apos;invoca cap LLM. La previsualització
+          mostra exactament què s&apos;enviarà a Slack: una capçalera curta més
+          un CSV adjunt per cada query.
+        </AlertDescription>
+      </Alert>
+
+      <section className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-4">
+        <p className="mb-2 text-[10px] uppercase tracking-wide text-zinc-500">
+          Slack message
+        </p>
+        <p className="font-mono text-sm text-zinc-800">{slackMock.headerText}</p>
+        {slackMock.attachments.length > 0 && (
+          <ul className="mt-2 space-y-0.5">
+            {slackMock.attachments.map((att) => (
+              <li
+                key={att.filename}
+                className="font-mono text-xs text-zinc-600"
+              >
+                📎 {att.filename}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-5">
+        <p className="text-[10px] uppercase tracking-wide text-zinc-500">
+          Dades adjuntes (preview)
+        </p>
+        {queries.map((q, idx) => (
+          <div
+            key={`${q.queryName}-${idx}`}
+            className="rounded-lg border border-zinc-200 p-3"
+          >
+            <div className="mb-3">
+              <p className="text-sm font-medium text-zinc-900">{q.queryName}</p>
+              <p className="font-mono text-[11px] text-zinc-500">
+                from {q.reportTitle}
+              </p>
+            </div>
+            <PreviewTable
+              columns={q.columns}
+              rows={q.rows}
+              total_rows={q.total_rows}
+            />
+          </div>
+        ))}
+      </section>
     </div>
   );
 }
