@@ -815,3 +815,138 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
   - [x] 19.11 README env-var doc + roadmap entry. `GROQ_API_KEY` line added to the web-app env-vars block noting both consumers (dry-run from task 18.0 + Prompt Assistant from task 19.0). Roadmap entry for 19.0 added in ⏳ state — flip to ✅ at merge time. Sub-task checkboxes flipped to `[x]` as each lands; `19.0` parent header flips to ✅ at full ship + smoke test pass.
 
   - [x] 19.12 **Beta marker** (post-19.0 chore, 2026-05-18): both `PromptAssistantButton` (trigger inside BriefForm) and `PromptAssistantSheet` (header next to the «Prompt Assistant» title) render a small uppercase «Beta» chip. New shared component `web/components/BetaChip.tsx` (8 lines, amber palette: border-amber-200 / bg-amber-50 / text-amber-700) styled to mirror `DraftChip` so the badge vocabulary stays coherent. Rationale: the assistant's quality depends on model + few-shot heuristics that are still being calibrated; the Beta marker sets correct user expectations without requiring a model selector (see Open Question 12). PRD §4 A1 updated with the same note.
+
+- [ ] **20.0 Prompt-design tooling polish & raw-mode handling** — PRD §4 «Prompt-design tooling polish & raw-mode handling» (PD1-PD10) + §7 implementation notes. Branch `feature/20.0-prompt-design-polish` (already created, branched from `claude/prompt-design-tooling-rcLIR` after the PRD + Beta chore commits). Bundles a polish/bug-fix cycle for the three prompt-design tooling features (17.0 Mode preview, 18.0 Dry-run, 19.0 Prompt Assistant). The single most impactful item is **PD5** (raw-mode dry-run bug fix): `web/lib/dryRun.ts` currently calls GROQ with an empty system prompt when `brief.prompt === ""`, producing phantom output text + token usage on briefs that are supposed to be raw-mode-only (capability shipped via PR #69). Other items are chrome polish and the shared resize affordance across right-side Sheets. **No new env vars, no new shadcn primitives, no new external infra** — entirely a code refactor + UI polish bundle.
+
+  - [ ] 20.1 Refactor `web/lib/dryRun.ts`: promote `fetchAllSources()` and `QueryResult` from private to exported, no signature change.
+    - Add `export` keyword to both. The existing `runDryRun` consumer keeps its call site (`results = await fetchAllSources(brief, signal);`) unchanged.
+    - Reason: the new raw-mode generator (20.2) reuses the exact same Mode pipeline. Sharing the helper avoids a parallel implementation drift between GROQ and raw paths.
+    - Sanity: `grep "fetchAllSources" web/` after this sub-task shows the same one caller (`runDryRun`); after 20.2 lands it shows two.
+
+  - [ ] 20.2 Implement `runRawModeDryRun()` generator inside `web/lib/dryRun.ts`. Same file as `runDryRun` so the two paths sit side by side and any future divergence is easy to spot.
+    - Extend the `DryRunEvent` union with a new variant:
+      ```ts
+      | { kind: "raw-mode-data"; queryName: string; reportTitle: string; columns: string[]; rows: object[]; total_rows: number }
+      ```
+    - Modify the `complete` event to allow `usage: TokenUsage | null` so raw mode can signal completion without LLM token counts.
+    - Algorithm:
+      1. `const results = await fetchAllSources(brief, signal);` — identical Mode walk to the GROQ path. Any Mode failure yields `{ kind: "error", phase: "mode", message }` and returns.
+      2. For each `result` in `results`: compute `columns = Object.keys(result.rows[0] ?? {})`, `total_rows = result.rows.length`, `rows = result.rows.slice(0, 10)`. Yield `{ kind: "raw-mode-data", queryName: result.queryName, reportTitle: result.reportTitle, columns, rows, total_rows }`.
+      3. Yield `{ kind: "complete", usage: null }`. Cannot fail in the GROQ phase because GROQ isn't invoked — that's the entire point.
+    - The 10-row slice is server-side (not client-side) so the payload stays small even when a query returns thousands of rows.
+
+  - [ ] 20.3 Wire the raw-mode branch into `web/app/api/briefs/dry-run/route.ts`.
+    - Just after the zod parse succeeds, before invoking the generator, branch:
+      ```ts
+      const prompt = brief.prompt.trim();
+      const generator = prompt === ""
+        ? runRawModeDryRun(brief, request.signal)
+        : runDryRun(brief, request.signal);
+      ```
+    - Pass `generator` into the existing `ReadableStream` producer — the SSE wire shape is generic over `DryRunEvent`, no other route change required.
+    - Add one structured log line at the top of the handler for operability: `console.log("[dry-run]", { brief: brief.name, mode: prompt ? "groq" : "raw" });`. Shows up in Vercel Function Logs and surfaces which branch the request took without needing to inspect the stream.
+    - No change to response headers, error mapping, or abort handling.
+
+  - [ ] 20.4 New helper `web/lib/dryRunPreview.ts` — pure function to compute the Slack-message mock the DryRunSheet renders in raw mode.
+    - Signature: `buildSlackRawModePreview(briefName: string, queries: Array<{ queryName: string }>): { headerText: string; attachments: Array<{ filename: string }> }`.
+    - `headerText` mirrors `scripts/executor.py:379` exactly: `📎 ${briefName} — ${todayDDMMYYYY} — volcat de dades`. Use `new Intl.DateTimeFormat("ca-ES", { timeZone: "Europe/Madrid", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())` to produce `DD/MM/YYYY` consistent with the user's local day (the executor uses `date.today()` which is the runner's tz — semantically «today» in Catalunya).
+    - `attachments` enumerates one entry per query the Sheet has received via raw-mode-data events. Filename uses a TS port of `executor.py:355-356`'s `slugify_for_filename`:
+      ```ts
+      function slugifyForFilename(text: string): string {
+        const slug = text.replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+        return (slug || "data") + ".csv";
+      }
+      ```
+    - Pure / synchronous / no side effects — easy to unit-test if a test layer ever lands.
+
+  - [ ] 20.5 Extend `web/components/DryRunSheet.tsx` state machine with a new `"raw-mode"` status + branched rendering.
+    - State machine grows: status `"raw-mode"` carries `queries: Array<{ queryName, reportTitle, columns, rows, total_rows }>` accumulated from the SSE stream.
+    - SSE consumer transitions:
+      - First `raw-mode-data` event → `setState({ status: "raw-mode", queries: [event] })`. (Note: this preempts any prior `mode-fetched` → `streaming-groq` transition that won't happen.)
+      - Subsequent `raw-mode-data` events → append to `queries[]`.
+      - `complete` event with `usage: null` → stay in `"raw-mode"` (do NOT transition to `"ready"` — the GROQ-ready state assumes markdown text exists; raw mode has no body text).
+    - Body rendering when `status === "raw-mode"`:
+      1. **Alert (info)** at the top: «Aquest brief està en raw mode (sense prompt). No s'invoca cap LLM. Aquesta és la previsualització de què s'enviarà a Slack.» Reuse the existing `<Alert>` primitive; styling neutral (no destructive variant).
+      2. **Slack message mock** block. Call `buildSlackRawModePreview(brief.name, state.queries)` to get `{ headerText, attachments }`. Render the headerText in `font-mono text-sm` (no emoji escape needed — the string already contains `📎`). Below it, a small `<ul>` with one `<li>` per attachment showing `📎 <filename>` in `font-mono text-xs text-zinc-600`.
+      3. **Per-query data preview** sections. For each `q` in `state.queries`: render a `<section>` with a header `<h3>` showing `q.queryName` (font-medium) + `q.reportTitle` (font-mono muted, secondary line), then `<PreviewTable columns={q.columns} rows={q.rows} total_rows={q.total_rows} />` (component reused from 17.0). When `total_rows > 10`, PreviewTable already shows the «Showing N of M rows» footer.
+    - Suppress the «Cancel» button when `status === "raw-mode"` (no GROQ stream to cancel; Mode fetch is cancellable via Sheet close).
+    - Suppress the token-usage line at the bottom when `status === "raw-mode"`.
+
+  - [ ] 20.6 Empty-prompt CSV gate (PD4) — zod cross-field validation + BriefForm hint.
+    - File 1 — `web/lib/schemas.ts`: append `.superRefine((brief, ctx) => { ... })` to the `briefSchema`:
+      ```ts
+      .superRefine((brief, ctx) => {
+        if (brief.prompt.trim() === "") {
+          const hasCsv = brief.sources.some((s) => s.queries.some((q) => q.csv === true));
+          if (!hasCsv) {
+            ctx.addIssue({
+              code: "custom",
+              path: [], // root-level cross-field issue
+              message: "empty-prompt-needs-csv",
+            });
+          }
+        }
+      })
+      ```
+      The message is a STABLE CODE (not user-visible copy) so the form layer can branch on it. Keeps the schema language-agnostic.
+    - File 2 — `web/components/BriefForm.tsx`: locate the `validityHint` const (around line ~714). The current implementation returns a generic «Hi ha camps obligatoris buits o invàlids…» when `!isValid`. Add a branch:
+      ```ts
+      const rootError = (formState.errors as { root?: { message?: string } }).root?.message;
+      // if rootError === "empty-prompt-needs-csv" → render specific Catalan copy
+      ```
+      Specific copy: «Sense prompt, almenys una query ha de tenir CSV activat per tenir contingut a publicar a Slack.»
+    - The Save / Create button's existing `disabled={!isValid}` continues to gate — zod's superRefine flips `isValid` to `false` whenever the issue fires.
+    - Edge case: a brief with prompt OR csv toggles ON during edit → next `trigger()` re-evaluates and `isValid` flips back to `true` → button enables, hint clears. No additional wiring needed; RHF onChange mode handles it.
+
+  - [ ] 20.7 Chrome polish (PD1 + PD2) — single commit touching label literals + kebab order.
+    - **PD1 rename «Preview output» → «Preview»** across these surfaces:
+      - `web/components/BriefRowMenu.tsx`: kebab menu item label (line ~145). Update the text node from `Preview output` to `Preview`. Update `aria-label` if surfaced.
+      - `web/components/DryRunButton.tsx`: the literal English label inside the Button text node.
+      - The form-footer + detail-page-header consumers of `DryRunButton` consume the label from inside DryRunButton, so no separate edit there.
+      - Sanity grep: `grep -rn "Preview output" web/` should return zero hits after this sub-task (or only inside this TASKS file).
+    - **PD2 reorder kebab items**: in `BriefRowMenu.tsx`, the current vertical order inside the PopoverContent is `Edit / Run Now (button) / History / Preview output (button) / PublishToggleButton`. Move the Preview button block immediately AFTER the Edit MenuLink and BEFORE the Run Now button. Final order: Edit · Preview · Run Now · History · Publish/Unpublish.
+    - No change to logic, icons, hover states, disabled states, dispatch behaviour — pure reorder + literal swap.
+
+  - [ ] 20.8 New hook `web/hooks/useResizableSheetWidth.tsx` — encapsulates the resize state + pointer-capture handlers.
+    - File path matches the existing hook pattern: `web/hooks/useDryRun.tsx`, `web/hooks/usePromptAssistant.tsx`, `web/hooks/useRunNow.tsx` all live in `web/hooks/`.
+    - Exports `useResizableSheetWidth()` returning `{ width: number; handleProps: { onPointerDown, onPointerMove, onPointerUp } }`.
+    - Internalises constants and the storage key:
+      ```ts
+      const MIN_WIDTH = 480;
+      const MAX_WIDTH = 1400;
+      const DEFAULT_WIDTH = 672;
+      const STORAGE_KEY = "right-sheet:width";
+      ```
+    - State init: `useState<number>(DEFAULT_WIDTH)` + `useEffect(() => setWidth(loadWidth()), [])`. The two-step (default state then localStorage rehydration) avoids hydration mismatches if a Sheet renders during SSR.
+    - Drag logic: lift verbatim from `PreviewSheet.tsx:65-106` — the `onPointerDown` / `onPointerMove` / `onPointerUp` handlers and the `dragStateRef` are already in their final shape. Persist on `pointerUp` with the same try/catch around localStorage.
+    - The hook does NOT render the handle div; that's the consumer's responsibility (different aesthetics per Sheet, e.g. different z-index near close buttons).
+
+  - [ ] 20.9 Adopt `useResizableSheetWidth` in `PreviewSheet.tsx` + ship the PD8 drag bug fix.
+    - Replace the inlined `width` state + pointer handlers (the entire block lines ~27-106) with `const { width, handleProps } = useResizableSheetWidth();`. Apply `{...handleProps}` to the existing handle `<div>`.
+    - **PD8 fix — the actual drag-broken bug** lands here: add `[&_svg]:pointer-events-none` to the handle div's className. The inner `GripVertical` SVG was intercepting `pointerdown` before the parent listener fired (lucide-react icons render as inline SVGs with default `pointer-events: auto`, and Radix Dialog's pointer-events plumbing inside SheetContent doesn't help). Verifying after the fix: hovering over the icon shows `col-resize` cursor and drag responds.
+    - Optional refinement: widen the visible handle from `w-3` (12 px) to `w-1.5` (6 px) — the handle becomes a thinner line — and extend the hit area to ~16 px via `before:absolute before:-left-1.5 before:-right-1.5 before:inset-y-0 before:content-['']` on the handle div. Net effect: the visible affordance is more discreet but easier to grab.
+    - The localStorage key changes from `preview-sheet:width` (the old PreviewSheet-only key) to the shared `right-sheet:width`. Any pre-existing user-saved width on the old key is silently ignored after this lands — acceptable since the field was alpha behaviour with very few users having custom widths.
+
+  - [ ] 20.10 Adopt `useResizableSheetWidth` in the three remaining right-side Sheets.
+    - `web/components/DryRunSheet.tsx`: locate the SheetContent (currently `<SheetContent side="right" className="flex w-full flex-col sm:max-w-2xl">`). Switch to `<SheetContent side="right" className="flex flex-col sm:max-w-none" style={{ width }}>` (drop `w-full`, add `sm:max-w-none` to override the shadcn default 24rem cap). Mount the same handle `<div>` used in PreviewSheet just inside SheetContent.
+    - `web/components/PromptAssistantSheet.tsx`: same pattern. Existing className `"flex w-full flex-col sm:max-w-2xl"` → `"flex flex-col sm:max-w-none"` + dynamic width + handle.
+    - `web/components/HistoryDrawerButton.tsx`: this file owns the SheetContent for the history drawer; the inner `HistoryFeed` is the body. Apply the same pattern at the SheetContent.
+    - After this, all four right-side Sheets share `right-sheet:width` — resizing one Sheet's width updates the localStorage entry, and the next time any Sheet (same or different) opens, it reads the same persisted width.
+    - Sanity: verify that the existing close button (top-3 right-3 on every SheetContent) doesn't visually clash with the new handle (which is on the LEFT edge — no overlap by construction).
+
+  - [ ] 20.11 Docs sync — README + roadmap.
+    - **README Customization section** (or a new bullet): «Right-side panels (Mode preview, Dry-run, Prompt Assistant, History drawer) share a single user-resizable width persisted in `localStorage:right-sheet:width`. Defaults: min 480 px / default 672 px / max 1400 px. Re-tune by editing the constants at the top of `web/hooks/useResizableSheetWidth.tsx`.»
+    - **README roadmap**: append «20.0 ⏳ Prompt-design tooling polish — Beta marker on Prompt Assistant + raw-mode handling for dry-run + shared resizable right-side Sheets + empty-prompt CSV gate + Preview chrome rename.». Flip to ✅ at merge time.
+    - **README Vercel skip-build note (PD10)**: optional — only if not already documented elsewhere. One-liner: «Vercel «Ignored Build Step» runs `git diff --quiet HEAD^ HEAD ':(exclude)briefs/*.yml' && exit 0 || exit 1` so brief-YAML-only changes don't trigger production deploys.»
+    - **PRD / TASKS inline-deviation notes**: only if implementation surfaces a deviation from PD1-PD10. None expected.
+
+  - [ ] 20.12 Smoke test on Vercel preview (project's MVP gate — no automated tests).
+    1. **Beta marker visible**: open any brief detail → «Prompt Assistant» button shows the amber Beta chip. Open the Sheet → header title carries the Beta chip too.
+    2. **Raw-mode dry-run** (the headline fix): open `briefs/table-updates-no-prompt` (or any other brief with empty prompt). Click Preview from the detail header → Sheet opens, shows the «raw mode» Alert, the Slack message mock (📎 + filename list), and one PreviewTable per query. Inspect Vercel Function Logs: `[dry-run]` log shows `mode: "raw"`; NO GROQ usage logged.
+    3. **All three Preview triggers reach raw-mode**: repeat (2) from the BriefForm footer Preview (enter edit mode first) and from the sidebar kebab Preview. All three converge on the same `"raw-mode"` Sheet state.
+    4. **CSV gate**: create a new brief, leave Prompt empty AND every CSV checkbox unchecked → Save (in edit) / Create (in new) button is DISABLED, hint reads «Sense prompt, almenys una query ha de tenir CSV activat per tenir contingut a publicar a Slack.». Toggle one CSV ON → hint disappears, button enables. Toggle it back OFF → hint returns. Add some text to Prompt → hint also disappears (the other path through the gate).
+    5. **No regression on GROQ dry-run**: open a brief with a real prompt → Preview from header → Sheet shows the standard «Generant amb GROQ…» phase + streamed markdown + token usage at the bottom.
+    6. **Kebab order**: open the kebab on any sidebar brief. Items appear in order **Edit · Preview · Run Now · History · Publish/Unpublish**. Each still navigates / dispatches correctly.
+    7. **PreviewSheet drag works** (PD8 fix): open Mode preview on a query → hover the left edge of the Sheet → cursor flips to `col-resize` ~16 px before the visible handle → click-and-drag resizes the panel. Drag wider, close, re-open → width restored from localStorage.
+    8. **Shared resize across all four Sheets** (PD9): resize the Preview Sheet to ~900 px → close → open the Dry-run Preview Sheet → opens at 900 px. Resize Dry-run to 1200 px → close → open Prompt Assistant → opens at 1200 px. Same for the History drawer.
+    9. **PD10 Vercel skip-build**: post-merge only — confirm the «Configuration Settings differ» yellow warning resolves after the next Production deploy. Cosmetic verification in Vercel UI; not a blocker.
