@@ -101,8 +101,8 @@ export function HistoryDrawerButton({
       </SheetTrigger>
       <SheetContent
         side="right"
-        className="overflow-y-auto sm:max-w-none"
-        style={{ width: `${width}px` }}
+        className="overflow-y-auto"
+        style={{ width: `${width}px`, maxWidth: "none" }}
       >
         <SheetResizeHandle {...handleProps} />
         <SheetHeader>
