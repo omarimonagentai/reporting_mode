@@ -98,8 +98,8 @@ export function PreviewSheet({
     >
       <SheetContent
         side="right"
-        className="flex flex-col p-0 sm:max-w-none"
-        style={{ width: `${width}px` }}
+        className="flex flex-col p-0"
+        style={{ width: `${width}px`, maxWidth: "none" }}
       >
         <SheetResizeHandle {...handleProps} />
         <SheetHeader className="shrink-0 pr-12">

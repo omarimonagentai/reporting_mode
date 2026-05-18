@@ -287,8 +287,8 @@ export function PromptAssistantSheet({
       >
         <SheetContent
           side="right"
-          className="flex flex-col sm:max-w-none"
-          style={{ width: `${width}px` }}
+          className="flex flex-col"
+          style={{ width: `${width}px`, maxWidth: "none" }}
         >
           <SheetResizeHandle {...handleProps} />
           <SheetHeader className="shrink-0 pr-12">
