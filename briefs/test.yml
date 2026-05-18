@@ -13,9 +13,9 @@ prompt: |-
   Explica quant caldria facturar cada dia per arribar a l'objectiu del BBPP si portem facturat el "INVOICED" i amb el ritme de facturació diària que portem els darrers 8 dies, mirant només el provider 'Cooltra'. Quant caldria facturar cada dia per arribar a l'objectiu en el que queda de mes? (referència de dies pendents: si som el dia 18 ens queden 14 dies fins al 31).
 
   Format:
-  Titular estil "click bait" i dos paràgrafs:
+  Dos paràgrafs:
   1) objectiu del mes, actual facturat
-  2) import diari que ens falta, explicant lleugerament l'import
+  2) detalla clarament l'import diari que hauríem de fer per arribar a l'objectiu, explicant lleugerament com arribes a aquest import i comparant amb el promig de facturació dels darrers 8 dies (només Cooltra)
 
 
   Restriccions:
