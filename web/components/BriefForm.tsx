@@ -872,10 +872,9 @@ export function BriefForm(props: Props) {
             <FieldError message={errors.prompt?.message} />
           )}
           {isEditing && showRawCsvHint && (
-            <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              <strong>Mode «raw CSV»:</strong> com que el prompt és buit,
-              el brief no farà servir cap LLM. Perquè tingui contingut a
-              publicar a Slack,{" "}
+            <div className="mt-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+              Com que el prompt és buit, el brief no farà servir cap LLM.
+              Perquè tingui contingut a publicar a Slack,{" "}
               <strong>marca la casella CSV d&apos;almenys una query</strong>{" "}
               a les sources d&apos;amunt — només llavors es podrà desar.
             </div>

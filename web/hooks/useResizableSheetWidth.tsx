@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Shared resizable-width state for every right-side Sheet in the app
@@ -9,8 +9,19 @@ import { useEffect, useRef, useState } from "react";
  * has a coherent visual rhythm when alternating between Sheets.
  *
  * Consumers receive `{ width, handleProps }` and own the markup for
- * the handle element. The hook covers pointer-capture drag logic,
- * persistence, and the min/max/default clamps.
+ * the handle element. The hook covers drag logic, persistence, and
+ * the min/max/default clamps.
+ *
+ * Drag mechanics: on pointerdown we attach pointermove + pointerup
+ * to `window` and only detach on pointerup. We deliberately avoid
+ * relying on React's synthetic event system or pointer-capture on
+ * the handle element, because shadcn's Sheet wraps the Content in a
+ * Radix DismissableLayer whose native pointer listeners run at the
+ * document level. Earlier versions used `setPointerCapture` + React
+ * `onPointerMove` on the handle, which left a window of opportunity
+ * for Radix to interpret the drag's first event as an "interact
+ * outside" and dismiss the Sheet mid-resize — visually equivalent to
+ * "the resize does nothing".
  */
 
 const MIN_WIDTH = 480;
@@ -30,8 +41,6 @@ function loadWidth(): number {
 
 type HandleProps = {
   onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
-  onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
-  onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => void;
 };
 
 export function useResizableSheetWidth(): {
@@ -39,9 +48,8 @@ export function useResizableSheetWidth(): {
   handleProps: HandleProps;
 } {
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
-  const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(
-    null
-  );
+  const widthRef = useRef(DEFAULT_WIDTH);
+  widthRef.current = width;
 
   // Rehydrate from localStorage after mount so SSR output stays
   // deterministic (default width).
@@ -49,57 +57,50 @@ export function useResizableSheetWidth(): {
     setWidth(loadWidth());
   }, []);
 
-  // Pointer-capture on the handle element binds the pointer for the
-  // duration of the drag, so move/up events route to the handle
-  // regardless of cursor position. This was the fix in PreviewSheet's
-  // commit dcb64d0 — kept here verbatim.
-  //
-  // stopPropagation is also necessary: shadcn's Sheet wraps a Radix
-  // DismissableLayer that listens for pointerdown to detect
-  // interactions outside the Content. The handle visually sits at the
-  // very edge of the Content and Radix can mis-classify the drag as
-  // an outside interaction, dismissing the Sheet mid-resize. Stopping
-  // propagation keeps the event local to the handle.
-  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    e.preventDefault();
-    e.stopPropagation();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    dragStateRef.current = { startX: e.clientX, startWidth: width };
-  }
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startWidth = widthRef.current;
 
-  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const s = dragStateRef.current;
-    if (!s) return;
-    // The handle is on the LEFT edge of a right-anchored Sheet: moving
-    // the pointer left of the start position grows the panel.
-    const dx = s.startX - e.clientX;
-    const next = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, s.startWidth + dx));
-    setWidth(next);
-  }
+      function onMove(ev: PointerEvent) {
+        // The handle is on the LEFT edge of a right-anchored Sheet:
+        // moving the pointer left of the start position grows the
+        // panel.
+        const dx = startX - ev.clientX;
+        const next = Math.max(
+          MIN_WIDTH,
+          Math.min(MAX_WIDTH, startWidth + dx)
+        );
+        setWidth(next);
+      }
 
-  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
-    if (!dragStateRef.current) return;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      // ignore — capture may have been released already
-    }
-    const finalWidth = (() => {
-      const s = dragStateRef.current;
-      if (!s) return width;
-      const dx = s.startX - e.clientX;
-      return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, s.startWidth + dx));
-    })();
-    dragStateRef.current = null;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, String(finalWidth));
-    } catch {
-      // ignore quota / disabled storage
-    }
-  }
+      function onUp(ev: PointerEvent) {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        const dx = startX - ev.clientX;
+        const finalWidth = Math.max(
+          MIN_WIDTH,
+          Math.min(MAX_WIDTH, startWidth + dx)
+        );
+        try {
+          window.localStorage.setItem(STORAGE_KEY, String(finalWidth));
+        } catch {
+          // ignore quota / disabled storage
+        }
+      }
+
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    },
+    []
+  );
 
   return {
     width,
-    handleProps: { onPointerDown, onPointerMove, onPointerUp },
+    handleProps: { onPointerDown },
   };
 }

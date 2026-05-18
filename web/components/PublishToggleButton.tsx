@@ -79,7 +79,7 @@ export function PublishToggleButton({
   return (
     <Button
       type="button"
-      variant="outline"
+      variant={published ? "outline" : "default"}
       onClick={toggle}
       disabled={busy || isPending}
     >

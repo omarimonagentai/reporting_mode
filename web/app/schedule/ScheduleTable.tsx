@@ -17,11 +17,6 @@ import {
 } from "@/lib/cron";
 import type { BriefListItemWithRun } from "@/lib/briefs";
 import { DraftChip } from "@/components/DraftChip";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export type ScheduleRow = {
@@ -170,22 +165,12 @@ export function ScheduleTable({ rows }: Props) {
                 </div>
               </td>
               <td className="px-4 py-3">
-                {next ? (
-                  brief.published ? (
-                    <NextFireCell date={next} />
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="inline-block opacity-60">
-                          <NextFireCell date={next} />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-xs">
-                        Aquest brief està despublicat — el cron no
-                        s&apos;aplicarà fins que es publiqui.
-                      </TooltipContent>
-                    </Tooltip>
-                  )
+                {!brief.published ? (
+                  <span className="text-xs italic text-zinc-500">
+                    Publicar per programar enviament
+                  </span>
+                ) : next ? (
+                  <NextFireCell date={next} />
                 ) : (
                   <span className="text-zinc-400">—</span>
                 )}
