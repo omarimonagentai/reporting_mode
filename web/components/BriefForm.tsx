@@ -787,10 +787,19 @@ export function BriefForm(props: Props) {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div
         className={cn(
-          "sticky top-0 z-20 -mx-8 px-8 transition-[padding,background-color,box-shadow,border-color] duration-150",
+          // Background + backdrop-blur are applied UNCONDITIONALLY so
+          // form content scrolling under the sticky bar is always
+          // hidden. The /95 alpha keeps a faint trace of the form
+          // showing through; combined with backdrop-blur the result
+          // is "frosted" — clearly a separate layer without looking
+          // like a hard solid block disconnected from the page.
+          "sticky top-0 z-20 -mx-8 border-b bg-zinc-50/95 px-8 backdrop-blur-sm transition-[padding,border-color] duration-150",
+          // The border + padding tighten when stuck, marking the
+          // transition from "title sitting at top of form" to
+          // "compact toolbar floating over content".
           stuck
-            ? "border-b border-zinc-200 bg-zinc-50/95 py-3 backdrop-blur"
-            : "border-b border-transparent bg-transparent py-0"
+            ? "border-zinc-200 py-3"
+            : "border-transparent py-4"
         )}
       >
         {/* Sentinel positioned 1px above the sticky header's top. The
