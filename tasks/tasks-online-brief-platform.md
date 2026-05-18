@@ -898,7 +898,7 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - The Save / Create button's existing `disabled={!isValid}` continues to gate — zod's superRefine flips `isValid` to `false` whenever the issue fires.
     - Edge case: a brief with prompt OR csv toggles ON during edit → next `trigger()` re-evaluates and `isValid` flips back to `true` → button enables, hint clears. No additional wiring needed; RHF onChange mode handles it.
 
-  - [ ] 20.7 Chrome polish (PD1 + PD2) — single commit touching label literals + kebab order.
+  - [x] 20.7 Chrome polish (PD1 + PD2) — single commit touching label literals + kebab order.
     - **PD1 rename «Preview output» → «Preview»** across these surfaces:
       - `web/components/BriefRowMenu.tsx`: kebab menu item label (line ~145). Update the text node from `Preview output` to `Preview`. Update `aria-label` if surfaced.
       - `web/components/DryRunButton.tsx`: the literal English label inside the Button text node.

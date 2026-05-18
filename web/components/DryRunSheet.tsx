@@ -227,7 +227,7 @@ export function DryRunSheet({ open, payload, filename, onClose }: Props) {
           <SheetTitle className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-2 text-base font-medium">
               <Sparkles className="size-4 text-zinc-500" />
-              Preview output
+              Preview
             </span>
             {(state.kind === "loading-mode" ||
               state.kind === "streaming-groq") && (
