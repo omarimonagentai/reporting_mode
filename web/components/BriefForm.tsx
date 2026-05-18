@@ -582,6 +582,20 @@ export function BriefForm(props: Props) {
 
   const sources = useFieldArray({ control, name: "sources" });
 
+  // Live-watched fields driving the contextual "raw CSV mode" hint
+  // shown below the Prompt textarea. We surface this advice as soon
+  // as the user lands on the empty-prompt + no-CSV combination — not
+  // only once all other validations pass — so the requirement to
+  // tick a CSV box is discoverable in-context, rather than buried in
+  // the top-of-form validityHint.
+  const watchedPrompt = useWatch({ control, name: "prompt" }) ?? "";
+  const watchedSources = useWatch({ control, name: "sources" }) ?? [];
+  const showRawCsvHint =
+    watchedPrompt.trim() === "" &&
+    !watchedSources.some((s) =>
+      (s?.queries ?? []).some((q) => q?.csv === true)
+    );
+
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -857,6 +871,15 @@ export function BriefForm(props: Props) {
           {shouldShowError("prompt") && (
             <FieldError message={errors.prompt?.message} />
           )}
+          {isEditing && showRawCsvHint && (
+            <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <strong>Mode «raw CSV»:</strong> com que el prompt és buit,
+              el brief no farà servir cap LLM. Perquè tingui contingut a
+              publicar a Slack,{" "}
+              <strong>marca la casella CSV d&apos;almenys una query</strong>{" "}
+              a les sources d&apos;amunt — només llavors es podrà desar.
+            </div>
+          )}
         </div>
 
         <div>
@@ -950,24 +973,22 @@ export function BriefForm(props: Props) {
       </section>
 
       <div className="border-t border-zinc-200 pt-6">
-        <div className="flex items-center justify-start gap-3">
-          {actionButtons}
-        </div>
-        {validityHint}
-        {isEditing && (
-          <div className="mt-3 flex justify-start">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">{actionButtons}</div>
+          {isEditing && (
             <DryRunButton
               mode="form"
               getBrief={() => getValues() as Brief}
               disabled={!isValid}
               filename={isCreate ? undefined : props.filename}
             />
-          </div>
-        )}
+          )}
+        </div>
+        {validityHint}
       </div>
 
       {!isCreate && mode === "view" && (
-        <div className="flex justify-end border-t border-zinc-200 pt-6">
+        <div className="flex justify-end pt-2">
           <Button
             type="button"
             size="sm"
