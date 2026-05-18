@@ -1,0 +1,11 @@
+name: Prompt sense taules
+published: false
+schedule: 0 8 * * *
+slack_channel: testing-canal-nou-eliminar
+sources:
+  - mode_report_token: bd8b5c4d3c80
+    queries:
+      - token: e81413b503a4
+        csv: true
+prompt: ""
+owner_email: null
