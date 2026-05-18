@@ -801,7 +801,7 @@ export function BriefForm(props: Props) {
           aria-hidden
           className="pointer-events-none absolute -top-px left-0 h-px w-px"
         />
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             {isEditing ? (
               <>
@@ -809,9 +809,9 @@ export function BriefForm(props: Props) {
                   id="name"
                   {...register("name")}
                   aria-invalid={shouldShowError("name") && !!errors.name}
-                  placeholder="Sense títol · ex: App version adoption — weekly"
+                  placeholder="Posa-li un nom · ex: App version adoption — weekly"
                   className={cn(
-                    "h-auto min-w-0 flex-1 border-0 bg-transparent px-0 font-semibold text-zinc-900 placeholder:font-normal placeholder:text-zinc-400 shadow-none transition-[font-size] duration-150 focus-visible:ring-0",
+                    "h-auto min-w-0 flex-1 border-0 border-b-2 border-transparent bg-transparent px-0 font-semibold text-zinc-900 placeholder:font-normal placeholder:text-zinc-500 placeholder-shown:border-dashed placeholder-shown:border-zinc-300 shadow-none transition-[font-size,border-color] duration-150 focus-visible:ring-0",
                     stuck ? "text-base" : "text-2xl"
                   )}
                 />
@@ -852,8 +852,12 @@ export function BriefForm(props: Props) {
         {shouldShowError("name") && (
           <FieldError message={errors.name?.message} />
         )}
-        {validityHint}
       </div>
+
+      {/* Validity hint lives just below the sticky bar (not inside it)
+          so the header itself stays a single visual row. The hint
+          still scrolls under the sticky on its own. */}
+      {validityHint && <div className="-mt-4">{validityHint}</div>}
 
       {props.metadataSlot && <div>{props.metadataSlot}</div>}
 
