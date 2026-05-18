@@ -847,7 +847,7 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
     - Add one structured log line at the top of the handler for operability: `console.log("[dry-run]", { brief: brief.name, mode: prompt ? "groq" : "raw" });`. Shows up in Vercel Function Logs and surfaces which branch the request took without needing to inspect the stream.
     - No change to response headers, error mapping, or abort handling.
 
-  - [ ] 20.4 New helper `web/lib/dryRunPreview.ts` — pure function to compute the Slack-message mock the DryRunSheet renders in raw mode.
+  - [x] 20.4 New helper `web/lib/dryRunPreview.ts` — pure function to compute the Slack-message mock the DryRunSheet renders in raw mode.
     - Signature: `buildSlackRawModePreview(briefName: string, queries: Array<{ queryName: string }>): { headerText: string; attachments: Array<{ filename: string }> }`.
     - `headerText` mirrors `scripts/executor.py:379` exactly: `📎 ${briefName} — ${todayDDMMYYYY} — volcat de dades`. Use `new Intl.DateTimeFormat("ca-ES", { timeZone: "Europe/Madrid", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())` to produce `DD/MM/YYYY` consistent with the user's local day (the executor uses `date.today()` which is the runner's tz — semantically «today» in Catalunya).
     - `attachments` enumerates one entry per query the Sheet has received via raw-mode-data events. Filename uses a TS port of `executor.py:355-356`'s `slugify_for_filename`:
@@ -859,7 +859,7 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
       ```
     - Pure / synchronous / no side effects — easy to unit-test if a test layer ever lands.
 
-  - [ ] 20.5 Extend `web/components/DryRunSheet.tsx` state machine with a new `"raw-mode"` status + branched rendering.
+  - [x] 20.5 Extend `web/components/DryRunSheet.tsx` state machine with a new `"raw-mode"` status + branched rendering.
     - State machine grows: status `"raw-mode"` carries `queries: Array<{ queryName, reportTitle, columns, rows, total_rows }>` accumulated from the SSE stream.
     - SSE consumer transitions:
       - First `raw-mode-data` event → `setState({ status: "raw-mode", queries: [event] })`. (Note: this preempts any prior `mode-fetched` → `streaming-groq` transition that won't happen.)
