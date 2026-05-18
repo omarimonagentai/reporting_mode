@@ -818,12 +818,12 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
 
 - [ ] **20.0 Prompt-design tooling polish & raw-mode handling** — PRD §4 «Prompt-design tooling polish & raw-mode handling» (PD1-PD10) + §7 implementation notes. Branch `feature/20.0-prompt-design-polish` (already created, branched from `claude/prompt-design-tooling-rcLIR` after the PRD + Beta chore commits). Bundles a polish/bug-fix cycle for the three prompt-design tooling features (17.0 Mode preview, 18.0 Dry-run, 19.0 Prompt Assistant). The single most impactful item is **PD5** (raw-mode dry-run bug fix): `web/lib/dryRun.ts` currently calls GROQ with an empty system prompt when `brief.prompt === ""`, producing phantom output text + token usage on briefs that are supposed to be raw-mode-only (capability shipped via PR #69). Other items are chrome polish and the shared resize affordance across right-side Sheets. **No new env vars, no new shadcn primitives, no new external infra** — entirely a code refactor + UI polish bundle.
 
-  - [ ] 20.1 Refactor `web/lib/dryRun.ts`: promote `fetchAllSources()` and `QueryResult` from private to exported, no signature change.
+  - [x] 20.1 Refactor `web/lib/dryRun.ts`: promote `fetchAllSources()` and `QueryResult` from private to exported, no signature change.
     - Add `export` keyword to both. The existing `runDryRun` consumer keeps its call site (`results = await fetchAllSources(brief, signal);`) unchanged.
     - Reason: the new raw-mode generator (20.2) reuses the exact same Mode pipeline. Sharing the helper avoids a parallel implementation drift between GROQ and raw paths.
     - Sanity: `grep "fetchAllSources" web/` after this sub-task shows the same one caller (`runDryRun`); after 20.2 lands it shows two.
 
-  - [ ] 20.2 Implement `runRawModeDryRun()` generator inside `web/lib/dryRun.ts`. Same file as `runDryRun` so the two paths sit side by side and any future divergence is easy to spot.
+  - [x] 20.2 Implement `runRawModeDryRun()` generator inside `web/lib/dryRun.ts`. Same file as `runDryRun` so the two paths sit side by side and any future divergence is easy to spot.
     - Extend the `DryRunEvent` union with a new variant:
       ```ts
       | { kind: "raw-mode-data"; queryName: string; reportTitle: string; columns: string[]; rows: object[]; total_rows: number }
@@ -835,7 +835,7 @@ Implementation plan derived from `tasks/prd-online-brief-platform.md`.
       3. Yield `{ kind: "complete", usage: null }`. Cannot fail in the GROQ phase because GROQ isn't invoked — that's the entire point.
     - The 10-row slice is server-side (not client-side) so the payload stays small even when a query returns thousands of rows.
 
-  - [ ] 20.3 Wire the raw-mode branch into `web/app/api/briefs/dry-run/route.ts`.
+  - [x] 20.3 Wire the raw-mode branch into `web/app/api/briefs/dry-run/route.ts`.
     - Just after the zod parse succeeds, before invoking the generator, branch:
       ```ts
       const prompt = brief.prompt.trim();
