@@ -10,10 +10,11 @@ sources:
       - token: cbaac7bd14cb
         csv: true
 prompt: |-
-  Explica quant caldria facturar cada dia per arribar a l'objectiu del BBPP si portem facturat el "INVOICED" i amb el ritme de facturació diària que portem els darrers 8 dies. Quant caldria facturar cada dia per arribar a l'objectiu en el que queda de dia? Explica els càlculs.
+  Explica quant caldria facturar cada dia per arribar a l'objectiu del BBPP si portem facturat el "INVOICED" i amb el ritme de facturació diària que portem els darrers 8 dies, mirant només el provider 'Cooltra'. Quant caldria facturar cada dia per arribar a l'objectiu en el que queda de mes? Explica els càlculs.
 
   Restriccions:
   - escriu en castellà
+  - format dels imports en .000€ (sense decimals i separant amb punts els milers)
   - màxim 250 paraules
   - sense preàmbuls, sense conclusions
 owner_email: null
