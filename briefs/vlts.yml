@@ -6,7 +6,7 @@ sources:
   - mode_report_token: bd8b5c4d3c80
     queries:
       - token: e81413b503a4
-        csv: false
+        csv: true
 prompt: |-
   Indica quin és el rental que porta més temps obert.
   Restriccions:
