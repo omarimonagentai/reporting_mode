@@ -1,0 +1,16 @@
+name: VLTs
+published: false
+schedule: 0 10 * * *
+slack_channel: testing-canal-nou-eliminar
+sources:
+  - mode_report_token: bd8b5c4d3c80
+    queries:
+      - token: e81413b503a4
+        csv: false
+prompt: |-
+  Indica quin és el rental que porta més temps obert.
+  Restriccions:
+  - Respon en català
+  - Respon en 1 paràgraf
+  - No uses més de 50 paraules
+owner_email: null
