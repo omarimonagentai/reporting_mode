@@ -68,11 +68,21 @@ with the rest of the app.
   / default `672 px` / max `1400 px`. Re-tune by editing the constants
   at the top of `web/hooks/useResizableSheetWidth.tsx`.
 
-- **Vercel skip-build script** — the project's «Ignored Build Step» on
-  Vercel runs `git diff --quiet HEAD^ HEAD ':(exclude)briefs/*.yml' && exit 0 || exit 1`
-  so brief-YAML-only commits (created via the web app or pushed by an
-  operator) don't trigger a production deploy. Changing files outside
-  `briefs/` still builds normally.
+- **Vercel skip-build script** — Vercel's «Ignored Build Step» (under
+  Build and Deployment → Production Overrides → Behavior: Custom) runs
+  `git log -1 --pretty=%s | grep -qE '^(Create|Update|Delete) brief:' && exit 0 || exit 1`
+  so brief-CRUD commits made by the web app (which always use the
+  message pattern `Create brief: <slug>` / `Update brief: <slug>` /
+  `Delete brief: <slug>`) don't trigger a production deploy. Any other
+  commit message builds normally. Skipped builds show up as **Canceled
+  (2s)** in the Vercel Deployments tab — make sure the Canceled
+  checkbox is enabled in the status filter to see them.
+
+  A prior version of this script used `git diff --quiet HEAD^ HEAD`
+  against the file paths, but Vercel's shallow build clone makes
+  `HEAD^` unreliable so the diff path was retired in favour of the
+  commit-message check (validated 2026-05-18 with 3 consecutive
+  Canceled-in-2s deploys).
 
 ## Running a brief manually
 
