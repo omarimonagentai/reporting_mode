@@ -249,22 +249,12 @@ function QueryRow({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {count === 0 ? (
-            <>
-              <Badge
-                variant="outline"
-                className="rounded-full border-zinc-200 font-normal text-zinc-400"
-              >
-                0 briefs
-              </Badge>
-              <Button asChild size="xs" variant="ghost">
-                <Link
-                  href={`/briefs/new?prefill_report=${reportToken}&prefill_query=${token}`}
-                >
-                  <Plus />
-                  Create brief
-                </Link>
-              </Button>
-            </>
+            <Badge
+              variant="outline"
+              className="rounded-full border-zinc-200 font-normal text-zinc-400"
+            >
+              0 briefs
+            </Badge>
           ) : (
             <Popover>
               <PopoverTrigger asChild>
@@ -302,6 +292,18 @@ function QueryRow({
               </PopoverContent>
             </Popover>
           )}
+          {/* Create-brief CTA is always available — even when the query
+              is already used elsewhere — so a query can power multiple
+              briefs without forcing the user back to /briefs/new and
+              re-picking the report + query manually. */}
+          <Button asChild size="xs" variant="ghost">
+            <Link
+              href={`/briefs/new?prefill_report=${reportToken}&prefill_query=${token}`}
+            >
+              <Plus />
+              Create brief
+            </Link>
+          </Button>
         </div>
       </div>
     </div>
